@@ -1,3 +1,5 @@
+import type { PluginEnvironmentProviderProgress } from "@get-bb/plugin-sdk/environment-provider";
+import { registerEnvironmentProgressReport } from "../environments/environment-hooks.js";
 import { resolveHostEnvironment } from "../hosts/host-environment.js";
 import {
   createProjectSource,
@@ -71,6 +73,7 @@ export async function cloneProjectSourceOnHost(
     hostId: string;
     remoteUrl: string | null;
     targetPath?: string;
+    report?: PluginEnvironmentProviderProgress;
   },
 ) {
   if (!args.remoteUrl) {
@@ -81,30 +84,45 @@ export async function cloneProjectSourceOnHost(
     );
   }
   const operationId = `project-clone-${randomUUID()}`;
-  const resolved = await runLiveHostCommand(deps, {
-    hostId: args.hostId,
-    timeoutMs: 20 * 60 * 1000,
-    command: {
-      type: "project.clone",
-      operationId,
-      contributedEnv: await resolveHostEnvironment(deps, {
-        hostId: args.hostId,
-        projectId: args.projectId,
-      }),
-      remoteUrl: args.remoteUrl,
-      projectSlug: args.projectName,
-      ...(args.targetPath !== undefined ? { targetPath: args.targetPath } : {}),
-    },
-  });
-  return registerProjectSourceOnHost(deps, {
-    projectId: args.projectId,
-    hostId: args.hostId,
-    ...resolved,
-    ownsPath: true,
-  });
+  const unregister =
+    args.report === undefined
+      ? undefined
+      : registerEnvironmentProgressReport(deps, {
+          hostId: args.hostId,
+          operationId,
+          report: args.report,
+        });
+  try {
+    const resolved = await runLiveHostCommand(deps, {
+      hostId: args.hostId,
+      timeoutMs: 20 * 60 * 1000,
+      command: {
+        type: "project.clone",
+        operationId,
+        contributedEnv: await resolveHostEnvironment(deps, {
+          hostId: args.hostId,
+          projectId: args.projectId,
+        }),
+        remoteUrl: args.remoteUrl,
+        projectSlug: args.projectName,
+        ...(args.targetPath !== undefined
+          ? { targetPath: args.targetPath }
+          : {}),
+      },
+    });
+    return registerProjectSourceOnHost(deps, {
+      projectId: args.projectId,
+      hostId: args.hostId,
+      ...resolved,
+      ownsPath: true,
+    });
+  } finally {
+    unregister?.();
+  }
 }
 
 interface EnsureProjectSourceArgs {
+  report?: PluginEnvironmentProviderProgress;
   projectId: string;
   projectName: string;
   hostId: string;
@@ -117,6 +135,7 @@ const pendingSetups = new WeakMap<
     string,
     {
       hostId: string;
+      reporters: Set<PluginEnvironmentProviderProgress>;
       promise: Promise<ReturnType<typeof registerProjectSourceOnHost>>;
     }
   >
@@ -144,9 +163,24 @@ export async function ensureProjectSourceOnHost(
   }
   const key = JSON.stringify([args.projectId, args.hostId]);
   const active = pending.get(key);
-  if (active !== undefined) return active.promise;
-  const setup = recoverOrCloneProjectSource(deps, args);
-  pending.set(key, { hostId: args.hostId, promise: setup });
+  if (active !== undefined) {
+    if (args.report !== undefined) active.reporters.add(args.report);
+    return active.promise;
+  }
+  const reporters = new Set<PluginEnvironmentProviderProgress>();
+  if (args.report !== undefined) reporters.add(args.report);
+  const setup = recoverOrCloneProjectSource(deps, {
+    ...args,
+    report: {
+      step: (text) => {
+        for (const report of reporters) report.step(text);
+      },
+      log: (text) => {
+        for (const report of reporters) report.log(text);
+      },
+    },
+  });
+  pending.set(key, { hostId: args.hostId, reporters, promise: setup });
   try {
     return await setup;
   } finally {
