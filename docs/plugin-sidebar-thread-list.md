@@ -103,6 +103,14 @@ lists cannot share one scroll area. The rules:
    crashed" chip. A chip in place of the whole sidebar leaves the user
    stranded. The host renders the built-in list instead, plus one toast that
    names the plugin. `PluginSlotMount` gains this fallback mode.
+6. Plugin frontends boot after the first route paint, so on a cold load the
+   slot would resolve to the built-in list and then swap once the plugin
+   bundle arrives. The host remembers which plugin owned the list when the
+   last boot completed (`bb.sidebar.thread-list-provider` in `localStorage`)
+   and, on the next load, holds the scroll area with a skeleton instead of
+   painting the built-in list. The hold releases when the plugin registers,
+   when frontends settle, or after 8 seconds, whichever comes first. A
+   pinned built-in list is never held.
 
 ---
 

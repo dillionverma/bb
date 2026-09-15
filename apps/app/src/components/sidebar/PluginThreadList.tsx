@@ -1,19 +1,36 @@
 import { useCallback, type ReactNode } from "react";
 import { PluginReplacementSlot } from "@/components/plugin/PluginReplacementSlot";
 import { deprecatedOriginalAlias } from "@/lib/plugin-sdk-deprecated-aliases";
-import { useSidebar } from "@/components/ui/sidebar.js";
+import { SidebarMenuSkeleton, useSidebar } from "@/components/ui/sidebar.js";
 import { useRouteState } from "@/hooks/useRouteState";
 import type { ResolvedReplacement } from "@/lib/plugin-slot-resolvers";
 import type { PluginThreadListSlot } from "@/lib/plugin-slots";
 import { appToast } from "@/components/ui/app-toast";
+import { useThreadListBootHold } from "./threadListProvider";
 
 const THREAD_LIST_SLOT_KIND = "threadList";
+const BOOT_HOLD_SKELETON_ROWS = [0, 1, 2, 3, 4, 5];
 
 interface PluginThreadListProps {
   replacement: ResolvedReplacement<PluginThreadListSlot>;
   original: ReactNode;
   searchQuery: string;
   onNavigate: () => void;
+}
+
+function ThreadListBootSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading sidebar"
+      data-testid="thread-list-boot-hold"
+      className="flex flex-col gap-1 px-2 py-2"
+    >
+      {BOOT_HOLD_SKELETON_ROWS.map((row) => (
+        <SidebarMenuSkeleton key={row} />
+      ))}
+    </div>
+  );
 }
 
 export function PluginThreadList({
@@ -24,6 +41,7 @@ export function PluginThreadList({
 }: PluginThreadListProps) {
   const { projectId, threadId } = useRouteState();
   const { isCompactViewport } = useSidebar();
+  const held = useThreadListBootHold(replacement);
   const title =
     replacement.kind === "plugin" ? replacement.registration.title : "Plugin";
 
@@ -35,6 +53,8 @@ export function PluginThreadList({
     },
     [title],
   );
+
+  if (held) return <ThreadListBootSkeleton />;
 
   return (
     <PluginReplacementSlot

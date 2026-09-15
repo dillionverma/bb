@@ -22,6 +22,7 @@ import { useDesktopThemeSync } from "./hooks/useDesktopThemeSync";
 import { usePluginFrontendBoot } from "./hooks/usePluginFrontendBoot";
 import { markRouteContentPainted } from "./lib/route-content-paint";
 import { useRememberPluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
+import { useRememberThreadListProvider } from "@/components/sidebar/threadListProvider";
 import { useWebSocket } from "./hooks/useWebSocket";
 import {
   AUTH_CALLBACK_ROUTE_PATH,
@@ -421,6 +422,7 @@ export function App() {
   useFaviconColorSync();
   usePluginFrontendBoot();
   useRememberPluginNavPanelChrome();
+  useRememberThreadListProvider();
 
   return (
     <QuickCreateProjectProvider>
