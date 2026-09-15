@@ -1270,3 +1270,134 @@ describe("plugin-owned idle timing", () => {
     }
   });
 });
+
+describe("suspension reconciliation", () => {
+  it("finds and preserves compute checkpointed before a failed resume bootstrap", async () => {
+    const test = await setup();
+    try {
+      const created = await test.provider.create(
+        createContext("failed-resume"),
+      );
+      if (created.status !== "created") throw new Error("create failed");
+      let resource = created.resource;
+      const context = () => ({
+        hostId: HOST_ID,
+        resource,
+        report,
+        signal: new AbortController().signal,
+        checkpoint: async (next: typeof resource) => {
+          resource = next;
+        },
+      });
+      await test.provider.suspend?.(context());
+      await expect(
+        test.provider.experimental_isSuspended?.(context()),
+      ).resolves.toBe(true);
+      test.bootstrap.mockRejectedValueOnce(
+        new Error("daemon protocol mismatch"),
+      );
+      await expect(test.provider.resume?.(context())).rejects.toThrow(
+        "daemon protocol mismatch",
+      );
+      expect(
+        test.backend.states.filter((state) => !state.terminated),
+      ).toHaveLength(1);
+      const allocations = test.backend.creates.length;
+      const bootstrapCalls = test.bootstrap.mock.calls.length;
+      await expect(
+        test.provider.experimental_isSuspended?.(context()),
+      ).resolves.toBe(false);
+      await test.provider.suspend?.(context());
+      await expect(
+        test.provider.experimental_isSuspended?.(context()),
+      ).resolves.toBe(true);
+      expect(test.backend.creates).toHaveLength(allocations);
+      expect(test.bootstrap).toHaveBeenCalledTimes(bootstrapCalls);
+      expect(test.backend.states.every((state) => state.terminated)).toBe(true);
+      expect(resource).toMatchObject({
+        sandboxId: null,
+        snapshotImageId: "image-2",
+      });
+    } finally {
+      await test.harness.lifecycle.dispose();
+    }
+  });
+
+  it("finds restored compute by its durable name when allocation was not checkpointed", async () => {
+    const test = await setup();
+    try {
+      const created = await test.provider.create(
+        createContext("uncheckpointed-resume"),
+      );
+      if (created.status !== "created") throw new Error("create failed");
+      const suspended = await test.provider.suspend?.({
+        hostId: HOST_ID,
+        resource: created.resource,
+        report,
+        signal: new AbortController().signal,
+        checkpoint: async () => {},
+      });
+      if (suspended === undefined) throw new Error("suspend missing");
+      const context = {
+        hostId: HOST_ID,
+        resource: suspended.resource,
+        report,
+        signal: new AbortController().signal,
+        checkpoint: async () => {
+          throw new Error("checkpoint failed");
+        },
+      };
+      await expect(test.provider.resume?.(context)).rejects.toThrow(
+        "checkpoint failed",
+      );
+      await expect(
+        test.provider.experimental_isSuspended?.(context),
+      ).resolves.toBe(false);
+      const saved = await test.provider.suspend?.({
+        ...context,
+        checkpoint: async () => {},
+      });
+      expect(saved?.resource).toMatchObject({
+        sandboxId: null,
+        snapshotImageId: "image-2",
+      });
+      expect(test.backend.creates).toHaveLength(2);
+      expect(test.backend.states.every((state) => state.terminated)).toBe(true);
+    } finally {
+      await test.harness.lifecycle.dispose();
+    }
+  });
+});
+
+it("continues the idle sweep after an individual machine has malformed activity data", async () => {
+  const test = await setup();
+  try {
+    const broken = {
+      ...host("disconnected"),
+      id: "broken-activity",
+      machineProviderId: PROVIDER_ID,
+    };
+    const idle = {
+      ...host("disconnected"),
+      id: "idle-machine",
+      machineProviderId: PROVIDER_ID,
+    };
+    test.harness.sdk.stub("hosts.list", async () => [broken, idle]);
+    test.harness.sdk.stub("hosts.get", async ({ hostId }) =>
+      hostId === broken.id ? broken : idle,
+    );
+    const suspend = vi.fn(async () => idle);
+    test.harness.sdk.stub("hosts.experimental_suspend", suspend);
+    await test.bb.storage.kv.set(`idle/${broken.id}`, "invalid");
+    await test.bb.storage.kv.set(`idle/${idle.id}`, 1);
+    await test.harness.behavior.runSchedule("pause-idle-machines");
+    expect(suspend).toHaveBeenCalledExactlyOnceWith({ hostId: idle.id });
+    expect(
+      test.harness.logEntries.some(
+        (entry) => entry.level === "warn" && entry.message.includes(broken.id),
+      ),
+    ).toBe(true);
+  } finally {
+    await test.harness.lifecycle.dispose();
+  }
+});

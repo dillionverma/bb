@@ -120,15 +120,15 @@ export function createModalSandboxPlugin(
           host.lifecycle.phase !== "active"
         )
           continue;
-        const stored = await bb.storage.kv.get<unknown>(idleKey(host.id));
-        const lastActivity =
-          stored === undefined ? null : z.number().finite().parse(stored);
-        if (lastActivity === null) {
-          await bumpIdle(host.id);
-          continue;
-        }
-        if (deps.now() < lastActivity + resolved.settings.idleMs) continue;
         try {
+          const stored = await bb.storage.kv.get<unknown>(idleKey(host.id));
+          const lastActivity =
+            stored === undefined ? null : z.number().finite().parse(stored);
+          if (lastActivity === null) {
+            await bumpIdle(host.id);
+            continue;
+          }
+          if (deps.now() < lastActivity + resolved.settings.idleMs) continue;
           await bb.sdk.hosts.experimental_suspend({ hostId: host.id });
         } catch (error) {
           if (hasErrorCode(error, "machine_busy")) continue;

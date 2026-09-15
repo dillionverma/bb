@@ -70,6 +70,7 @@ export interface SandboxBackend<
   reconcileCleanup(
     context: SandboxOperationContext & { key: string },
   ): Promise<void>;
+  isSuspended(context: SandboxResourceContext<Resource>): Promise<boolean>;
   suspend(context: SandboxLifecycleContext<Resource>): Promise<Resource>;
   resume(
     context: SandboxLifecycleContext<Resource>,

@@ -2687,6 +2687,9 @@ export interface NormalizedPluginMachineProvider {
   create: PluginMachineProviderDeclaration["create"];
   suspend: NonNullable<PluginMachineProviderDeclaration["suspend"]> | null;
   resume: NonNullable<PluginMachineProviderDeclaration["resume"]> | null;
+  experimental_isSuspended: NonNullable<
+    PluginMachineProviderDeclaration["experimental_isSuspended"]
+  > | null;
   remove: PluginMachineProviderDeclaration["remove"];
 }
 
@@ -2722,6 +2725,17 @@ export function validatePluginMachineProviderDeclaration(
   }
   const hasSuspend = typeof declaration.suspend === "function";
   const hasResume = typeof declaration.resume === "function";
+  assertOptionalFunction(
+    "machine provider",
+    id,
+    declaration.experimental_isSuspended,
+    "experimental_isSuspended",
+  );
+  if (declaration.experimental_isSuspended !== undefined && !hasSuspend) {
+    throw new Error(
+      `machine provider "${id}" suspension inspection requires suspend and resume`,
+    );
+  }
   if (hasSuspend !== hasResume) {
     throw new Error(
       `machine provider "${id}" must declare suspend and resume together`,
@@ -2754,6 +2768,7 @@ export function validatePluginMachineProviderDeclaration(
     create: declaration.create,
     suspend: declaration.suspend ?? null,
     resume: declaration.resume ?? null,
+    experimental_isSuspended: declaration.experimental_isSuspended ?? null,
     remove: declaration.remove,
   };
 }

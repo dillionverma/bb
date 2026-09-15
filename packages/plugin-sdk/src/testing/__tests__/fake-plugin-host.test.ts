@@ -2480,6 +2480,7 @@ describe("environment targets", () => {
       ephemeral: false,
       suspend: null,
       resume: null,
+      experimental_isSuspended: null,
     });
   });
 

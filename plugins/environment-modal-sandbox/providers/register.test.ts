@@ -42,6 +42,9 @@ it("registers a non-Modal backend through the shared extension point", async () 
       return { resource, executor };
     },
     async reconcileCleanup() {},
+    async isSuspended() {
+      return true;
+    },
     async suspend(context) {
       return context.resource;
     },

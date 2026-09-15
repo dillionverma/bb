@@ -64,6 +64,13 @@ ties a starting thread launch or provisioning environment to the machine, or whi
 checkout setup is pending; the next scheduled sweep retries. Continue interrupted turns
 explicitly.
 
+Core reconciles suspended machines against Modal at startup and on its lifecycle
+sweep. Unexpected running compute is preserved and stopped through the provider
+API without bootstrapping. Failed or interrupted resumes remain `suspending`
+until this recovery completes. Snapshot failures retain compute and retry from
+the latest checkpoint; lifecycle errors remain visible through machine show.
+Archiving, unarchiving, and renaming threads do not wake suspended machines.
+
 There is no pre-expiry scheduler. If a sandbox runs for its full 24-hour
 lifetime, changes since the last successful pause may be lost.
 Pause before the timeout to save work. Failed saves retain compute while it exists.

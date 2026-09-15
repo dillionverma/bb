@@ -310,6 +310,13 @@ export function createModalSandboxBackend(
       }
       context.signal.throwIfAborted();
     },
+    async isSuspended(context) {
+      const resolved = await requireSettings();
+      const sandbox = await findSandbox(context.resource, resolved);
+      if (sandbox !== null) return false;
+      requireRestorableSnapshot(context.resource);
+      return true;
+    },
     async suspend(
       context: SandboxLifecycleContext<ModalMachineResource>,
     ): Promise<ModalMachineResource> {

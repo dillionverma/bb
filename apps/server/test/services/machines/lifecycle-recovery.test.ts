@@ -1,3 +1,4 @@
+import type { PluginMachineProviderDeclaration } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { afterEach, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
@@ -18,6 +19,7 @@ import {
   requestMachineSuspension,
   resumeMachine,
   sweepProviderMachine,
+  sweepMachineLifecycles,
 } from "../../../src/services/machines/provider-orchestration.js";
 import { setPluginMachineProviderBridge } from "../../../src/services/plugins/plugin-machine-provider-registry.js";
 import { setPluginEnvironmentProviderBridge } from "../../../src/services/plugins/plugin-environment-provider-registry.js";
@@ -53,9 +55,10 @@ it("can resume after a snapshot fails following daemon shutdown", async () =>
       return { resource: { id: "owned" } };
     });
     installMachineProvider({
-      suspend: async () => {
-        throw new Error("snapshot API unavailable");
-      },
+      suspend: vi
+        .fn()
+        .mockRejectedValueOnce(new Error("snapshot API unavailable"))
+        .mockResolvedValue({ resource: { id: "saved" } }),
       resume,
     });
     updateHost(harness.db, harness.hub, target.host.id, {
@@ -71,15 +74,21 @@ it("can resume after a snapshot fails following daemon shutdown", async () =>
       requestMachineSuspension(harness.deps, target.host.id),
     ).rejects.toThrow("snapshot API unavailable");
     expect(shutdown).toHaveBeenCalledOnce();
-    expect(getHost(harness.db, target.host.id)?.phase).toBe("suspended");
+    expect(getHost(harness.db, target.host.id)?.phase).toBe("suspending");
     expect(harness.hub.hasDaemonForHost(target.host.id)).toBe(false);
+    await expect(
+      resumeMachine(harness.deps, target.host.id),
+    ).rejects.toMatchObject({ body: { code: "machine_maintenance" } });
+    updateHost(harness.db, harness.hub, target.host.id, { suspendRetryAt: 0 });
+    await sweepProviderMachine(harness.deps, target.host.id);
+    expect(getHost(harness.db, target.host.id)?.phase).toBe("suspended");
     await resumeMachine(harness.deps, target.host.id);
     expect(resume).toHaveBeenCalledOnce();
     expect(getHost(harness.db, target.host.id)?.phase).toBe("active");
     expect(harness.hub.hasDaemonForHost(target.host.id)).toBe(true);
   }));
 
-it("recovers a persisted resuming machine without queued work", async () =>
+it("preserves a persisted resuming machine without bootstrapping it", async () =>
   withTestHarness(async (harness) => {
     const target = seedHostSession(harness.deps, {
       id: "interrupted-resume",
@@ -100,12 +109,12 @@ it("recovers a persisted resuming machine without queued work", async () =>
 
     await sweepProviderMachine(harness.deps, target.host.id);
 
-    expect(resume).toHaveBeenCalledOnce();
+    expect(resume).not.toHaveBeenCalled();
     expect(getHost(harness.db, target.host.id)).toMatchObject({
       machineOperationId: expect.stringMatching(/^test-machine-plugin:/u),
-      phase: "active",
-      resource: { id: "restored" },
-      suspendedAt: null,
+      phase: "suspended",
+      resource: { id: "owned" },
+      suspendedAt: expect.any(Number),
     });
   }));
 
@@ -354,4 +363,190 @@ it("removes a suspended machine when its last thread is archived with an offline
     await sweepProviderMachine(harness.deps, target.host.id);
     expect(getHost(harness.db, target.host.id)?.phase).toBe("destroyed");
     expect(remove).toHaveBeenCalledOnce();
+  }));
+
+it("retries preservation of a failed resume from its allocation checkpoint", async () =>
+  withTestHarness(async (harness) => {
+    const { host, session } = seedHostSession(harness.deps, {
+      id: "failed-resume-checkpoint",
+    });
+    harness.hub.unregisterDaemon(session.id);
+    const resume = vi.fn<
+      NonNullable<PluginMachineProviderDeclaration["resume"]>
+    >(async ({ checkpoint }) => {
+      await checkpoint({ id: "restored-compute" });
+      throw new Error("daemon protocol mismatch");
+    });
+    const suspend = vi.fn<
+      NonNullable<PluginMachineProviderDeclaration["suspend"]>
+    >(async ({ resource, checkpoint }) => {
+      expect(resource).toEqual({ id: "restored-compute" });
+      await checkpoint({ id: "saved-filesystem" });
+      throw new Error("termination unavailable");
+    });
+    installMachineProvider({ resume, suspend });
+    updateHost(harness.db, harness.hub, host.id, {
+      machineProviderId: "test-machine",
+      phase: "suspended",
+      resource: { id: "old-snapshot" },
+      suspendedAt: 1,
+    });
+    await expect(resumeMachine(harness.deps, host.id)).rejects.toThrow(
+      "daemon protocol mismatch",
+    );
+    expect(getHost(harness.db, host.id)).toMatchObject({
+      phase: "suspending",
+      resource: { id: "restored-compute" },
+      suspendedAt: null,
+    });
+    await sweepProviderMachine(harness.deps, host.id);
+    expect(suspend).not.toHaveBeenCalled();
+    updateHost(harness.db, harness.hub, host.id, { suspendRetryAt: 0 });
+    await expect(sweepProviderMachine(harness.deps, host.id)).rejects.toThrow(
+      "termination unavailable",
+    );
+    expect(getHost(harness.db, host.id)).toMatchObject({
+      phase: "suspending",
+      resource: { id: "saved-filesystem" },
+    });
+    suspend.mockImplementationOnce(async ({ resource }) => {
+      expect(resource).toEqual({ id: "saved-filesystem" });
+      return { resource: { id: "saved-filesystem", stopped: true } };
+    });
+    updateHost(harness.db, harness.hub, host.id, { suspendRetryAt: 0 });
+    await sweepProviderMachine(harness.deps, host.id);
+    expect(getHost(harness.db, host.id)).toMatchObject({
+      phase: "suspended",
+      suspendRetryAt: null,
+      resource: { id: "saved-filesystem", stopped: true },
+    });
+    expect(resume).toHaveBeenCalledOnce();
+  }));
+
+it("reconciles running compute behind a suspended row before allowing a concurrent resume", async () =>
+  withTestHarness(async (harness) => {
+    const { host, session } = seedHostSession(harness.deps, {
+      id: "stranded-compute",
+    });
+    harness.hub.unregisterDaemon(session.id);
+    let observed!: (suspended: boolean) => void;
+    const inspection = new Promise<boolean>((resolve) => {
+      observed = resolve;
+    });
+    const inspect = vi.fn(() => inspection);
+    const suspend = vi.fn(async () => ({
+      resource: { id: "recovered-snapshot" },
+    }));
+    const resume = vi.fn<
+      NonNullable<PluginMachineProviderDeclaration["resume"]>
+    >(async ({ resource }) => {
+      expect(resource).toEqual({ id: "recovered-snapshot" });
+      return { resource: { id: "new-compute" } };
+    });
+    installMachineProvider({
+      experimental_isSuspended: inspect,
+      suspend,
+      resume,
+    });
+    updateHost(harness.db, harness.hub, host.id, {
+      machineProviderId: "test-machine",
+      phase: "suspended",
+      resource: { id: "stranded-compute" },
+      suspendedAt: 1,
+    });
+    const sweep = sweepProviderMachine(harness.deps, host.id);
+    await expect.poll(() => inspect.mock.calls.length).toBe(1);
+    const waking = resumeMachine(harness.deps, host.id);
+    expect(resume).not.toHaveBeenCalled();
+    observed(false);
+    await sweep;
+    await waking;
+    expect(suspend).toHaveBeenCalledOnce();
+    expect(resume).toHaveBeenCalledOnce();
+    expect(suspend.mock.invocationCallOrder[0]).toBeLessThan(
+      resume.mock.invocationCallOrder[0]!,
+    );
+    expect(getHost(harness.db, host.id)?.phase).toBe("active");
+  }));
+
+it("isolates failed provider observations and leaves stopped compute alone", async () =>
+  withTestHarness(async (harness) => {
+    const ids = ["inspection-fails", "already-stopped", "needs-preservation"];
+    for (const id of ids) {
+      const { host, session } = seedHostSession(harness.deps, { id });
+      harness.hub.unregisterDaemon(session.id);
+      updateHost(harness.db, harness.hub, host.id, {
+        machineProviderId: "test-machine",
+        phase: "suspended",
+        resource: { id },
+        suspendedAt: 1,
+      });
+    }
+    const suspend = vi.fn<
+      NonNullable<PluginMachineProviderDeclaration["suspend"]>
+    >(async ({ resource }) => ({ resource }));
+    const resume = vi.fn<
+      NonNullable<PluginMachineProviderDeclaration["resume"]>
+    >(async ({ resource }) => ({ resource }));
+    installMachineProvider({
+      experimental_isSuspended: async ({ hostId }) => {
+        if (hostId === "inspection-fails")
+          throw new Error("vendor unavailable");
+        return hostId === "already-stopped";
+      },
+      suspend,
+      resume,
+    });
+    await sweepMachineLifecycles(harness.deps);
+    expect(suspend).toHaveBeenCalledOnce();
+    expect(suspend).toHaveBeenCalledWith(
+      expect.objectContaining({ hostId: "needs-preservation" }),
+    );
+    expect(resume).not.toHaveBeenCalled();
+    expect(getHost(harness.db, ids[0]!)).toMatchObject({
+      phase: "suspended",
+      teardownStatus: "failed",
+      statusMessage: "vendor unavailable",
+    });
+    expect(getHost(harness.db, ids[1]!)).toMatchObject({
+      phase: "suspended",
+      resource: { id: "already-stopped" },
+      suspendedAt: 1,
+    });
+  }));
+
+it("does not preserve compute after removal supersedes a provider observation", async () =>
+  withTestHarness(async (harness) => {
+    const { host, session } = seedHostSession(harness.deps, {
+      id: "remove-during-observation",
+    });
+    harness.hub.unregisterDaemon(session.id);
+    let finish!: (value: boolean) => void;
+    const observation = new Promise<boolean>((resolve) => {
+      finish = resolve;
+    });
+    const inspect = vi.fn(() => observation);
+    const suspend = vi.fn(async () => ({ resource: { id: "saved" } }));
+    const resume = vi.fn(async () => ({ resource: { id: "running" } }));
+    installMachineProvider({
+      experimental_isSuspended: inspect,
+      suspend,
+      resume,
+    });
+    updateHost(harness.db, harness.hub, host.id, {
+      machineProviderId: "test-machine",
+      phase: "suspended",
+      resource: { id: "running" },
+      suspendedAt: 1,
+    });
+    const sweeping = sweepProviderMachine(harness.deps, host.id);
+    const finished = sweeping.catch(() => {});
+    await expect.poll(() => inspect.mock.calls.length).toBe(1);
+    requestMachineRemoval(harness.deps, host.id);
+    finish(false);
+    await finished;
+    await sweepProviderMachine(harness.deps, host.id);
+    expect(suspend).not.toHaveBeenCalled();
+    expect(resume).not.toHaveBeenCalled();
+    expect(getHost(harness.db, host.id)?.phase).toBe("destroyed");
   }));
