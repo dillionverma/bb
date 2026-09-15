@@ -83,12 +83,6 @@ export function registerSandboxBackend<
         return { status: "failed", message: errorMessage(error) };
       }
     },
-    async experimental_isSuspended(context) {
-      return backend.isSuspended({
-        ...context,
-        resource: backend.parseResource(context.resource),
-      });
-    },
     async suspend(context) {
       return {
         resource: await backend.suspend({

@@ -1,17 +1,5 @@
 # APIs To Audit
 
-## `PluginMachineProviderDefinition.experimental_isSuspended`
-
-Optional read-only provider observation for machines core records as suspended.
-Returns whether provider compute has stopped; requires suspend and resume. Core
-checks at startup and on its lifecycle sweep, serializes observation against
-resume/removal, and coordinates preservation and suspension when compute remains.
-Errors retain resource identity and remain visible for retry. The callback must
-never allocate, bootstrap, or mutate compute.
-
-Before stabilization, audit vendor lookup consistency, bounded observation,
-restart recovery, and races with dispatch, removal, and plugin replacement.
-
 ## `app.commands.register`
 
 `app.commands.register` requires SDK 0.4.91; `defaultShortcut` and keyboard

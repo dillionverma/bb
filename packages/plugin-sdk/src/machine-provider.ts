@@ -97,10 +97,6 @@ export interface PluginMachineProviderDefinition<
   suspend?(
     context: PluginMachineProviderResourceLifecycleContext,
   ): Promise<PluginMachineProviderResourceResult>;
-  /** Observe provider compute without waking it. Core checks suspended machines at startup and periodically, and coordinates suspension if this returns false. Requires suspend and resume. */
-  experimental_isSuspended?(
-    context: PluginMachineProviderRemoveContext,
-  ): Promise<boolean>;
   resume?(
     context: PluginMachineProviderResourceLifecycleContext,
   ): Promise<PluginMachineProviderResourceResult>;

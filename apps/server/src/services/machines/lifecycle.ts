@@ -209,8 +209,10 @@ export async function maintainMachine(
       current?.phase === "removing"
         ? current.phase
         : current !== null && current.suspendedAt !== null
-          ? "suspending"
-          : originalPhase;
+          ? "suspended"
+          : originalPhase === "suspending"
+            ? "active"
+            : originalPhase;
     updateHost(deps.db, deps.hub, hostId, {
       phase,
       statusMessage: cancelled ? null : `Machine suspension failed: ${message}`,

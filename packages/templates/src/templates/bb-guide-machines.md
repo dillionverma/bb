@@ -316,17 +316,3 @@ Progress and failures appear in the thread's provisioning details. If cloning
 fails, the machine remains available for retry or explicit removal.
 `--new-machine <id>` requires an explicit `--environment-provider <id>`; machine
 providers do not implicitly choose an environment.
-
-### Suspension recovery
-
-Failed or interrupted resumes and filesystem saves remain `suspending` while
-core retries preservation and compute shutdown from the latest provider
-checkpoint. `bb machine show <id> --json` and SDK `hosts.get` expose progress
-and failures. Providers can opt into observation of supposedly suspended
-machines; the startup and periodic lifecycle sweep repairs unexpected compute
-without bootstrapping. New work waits for preservation to finish.
-
-Thread archive, unarchive, rename, stop, and cancellation notifications do not
-wake machines. Provider metadata forwarding is best effort while connected;
-BB keeps the thread metadata when the provider is offline. Explicit work such as
-submitting a turn or committing a workspace can resume a machine.

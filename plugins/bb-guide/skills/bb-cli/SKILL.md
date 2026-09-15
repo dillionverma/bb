@@ -141,9 +141,3 @@ reported; this is not billing/invoice data. Suspension requires idle live thread
 and no open terminals; empty machines can use an opted-in provider idle policy.
 
 `bb thread context` reads recorded context usage without sending a model request. A breakdown is optional; absent usage is returned as `null`.
-
-Failed or interrupted machine resumes and filesystem saves remain `suspending`
-while core retries preservation and shutdown; inspect `bb machine show --json`
-for progress and errors. Archiving, unarchiving, renaming, stopping, and
-cancelling threads do not wake suspended machines. Provider metadata forwarding
-is best effort while connected; BB retains its metadata offline.
