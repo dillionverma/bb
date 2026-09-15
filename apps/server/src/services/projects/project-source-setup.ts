@@ -135,7 +135,6 @@ const pendingSetups = new WeakMap<
     string,
     {
       hostId: string;
-      reporters: Set<PluginEnvironmentProviderProgress>;
       promise: Promise<ReturnType<typeof registerProjectSourceOnHost>>;
     }
   >
@@ -163,24 +162,9 @@ export async function ensureProjectSourceOnHost(
   }
   const key = JSON.stringify([args.projectId, args.hostId]);
   const active = pending.get(key);
-  if (active !== undefined) {
-    if (args.report !== undefined) active.reporters.add(args.report);
-    return active.promise;
-  }
-  const reporters = new Set<PluginEnvironmentProviderProgress>();
-  if (args.report !== undefined) reporters.add(args.report);
-  const setup = recoverOrCloneProjectSource(deps, {
-    ...args,
-    report: {
-      step: (text) => {
-        for (const report of reporters) report.step(text);
-      },
-      log: (text) => {
-        for (const report of reporters) report.log(text);
-      },
-    },
-  });
-  pending.set(key, { hostId: args.hostId, reporters, promise: setup });
+  if (active !== undefined) return active.promise;
+  const setup = recoverOrCloneProjectSource(deps, args);
+  pending.set(key, { hostId: args.hostId, promise: setup });
   try {
     return await setup;
   } finally {

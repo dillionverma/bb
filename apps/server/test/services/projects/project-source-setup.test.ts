@@ -89,17 +89,18 @@ describe("automatic project source setup", () => {
           );
           for (const log of logs) expect(log).not.toHaveBeenCalled();
           reportEnvironmentHookProgress(harness.deps, fresh.host.id, progress);
-          for (const log of logs)
-            expect(log).toHaveBeenCalledExactlyOnceWith(
-              "Receiving objects: 42%\n",
-            );
+          expect(logs[0]).toHaveBeenCalledExactlyOnceWith(
+            "Receiving objects: 42%\n",
+          );
+          expect(logs[1]).not.toHaveBeenCalled();
           await reportQueuedCommandSuccess(harness, clone, {
             path: targetPath,
             gitRemoteUrl: remoteUrl,
           });
           await setup;
           reportEnvironmentHookProgress(harness.deps, fresh.host.id, progress);
-          for (const log of logs) expect(log).toHaveBeenCalledTimes(1);
+          expect(logs[0]).toHaveBeenCalledTimes(1);
+          expect(logs[1]).not.toHaveBeenCalled();
         } else {
           const inspect = await waitForQueuedCommand(
             harness,
