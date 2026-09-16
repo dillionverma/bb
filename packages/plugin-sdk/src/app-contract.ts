@@ -491,9 +491,11 @@ export interface PluginSettingsSectionRegistration {
  * The host mounts each registration once per app window through the ordinary
  * plugin React boundary. The component therefore keeps PluginContext, router,
  * query, realtime, and other app-level SDK contexts when it renders fixed UI
- * or creates a React portal. BB supplies no chrome, positioning, visibility,
- * or interaction policy; the plugin owns those details and responsive
- * behavior. Registrations are additive and a crash hides only that overlay.
+ * or creates a React portal. BB supplies no chrome or positioning; the plugin
+ * owns those details and its responsive layout. On compact viewports the host
+ * keeps overlays with the page: they translate with it while a sidebar or
+ * panel shelf reveals and ignore pointer input until the shelf closes.
+ * Registrations are additive and a crash hides only that overlay.
  */
 export interface ExperimentalAppOverlayRegistration {
   /** Unique within the plugin; letters, digits, `-`, `_`. */

@@ -13,7 +13,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@bb/shared-ui/tooltip";
-import { setCompactSidebarDrawerShowing } from "./sidebar-mobile-drawer-visibility.js";
+import {
+  isCompactSidebarDrawerShowing,
+  setCompactSidebarDrawerShowing,
+  subscribeCompactSidebarDrawerShowing,
+} from "./sidebar-mobile-drawer-visibility.js";
 import {
   getCompactSecondaryPanelPresentation,
   subscribeCompactSecondaryPanelShelfShowing,
@@ -72,6 +76,14 @@ const sidebarMobileWidthStyle: SidebarMobileWidthStyle = {
   "--sidebar-width-mobile": SIDEBAR_WIDTH_MOBILE,
 };
 
+const SIDEBAR_SHELF_COMPANION_SELECTOR = "[data-sidebar-shelf-companion]";
+
+function getSidebarShelfCompanions(root: ParentNode): HTMLElement[] {
+  return Array.from(
+    root.querySelectorAll(SIDEBAR_SHELF_COMPANION_SELECTOR),
+  ).filter((node): node is HTMLElement => node instanceof HTMLElement);
+}
+
 function getSidebarMobilePanelWidth(): number {
   if (typeof window === "undefined") {
     return 320;
@@ -88,9 +100,10 @@ function getSidebarMobileMotionNodes(): {
   panel: HTMLElement | null;
   backdrop: HTMLElement | null;
   inset: HTMLElement | null;
+  companions: HTMLElement[];
 } {
   if (typeof document === "undefined") {
-    return { panel: null, backdrop: null, inset: null };
+    return { panel: null, backdrop: null, inset: null, companions: [] };
   }
 
   const panel = document.querySelector(
@@ -103,6 +116,7 @@ function getSidebarMobileMotionNodes(): {
     panel: panel instanceof HTMLElement ? panel : null,
     backdrop: backdrop instanceof HTMLElement ? backdrop : null,
     inset: inset instanceof HTMLElement ? inset : null,
+    companions: getSidebarShelfCompanions(document),
   };
 }
 
@@ -113,7 +127,7 @@ function applySidebarMobileDragStyles({
   progress: number;
   settling: boolean;
 }) {
-  const { panel, backdrop, inset } = getSidebarMobileMotionNodes();
+  const { panel, backdrop, inset, companions } = getSidebarMobileMotionNodes();
   const translate = `${getSidebarMobilePanelWidth() * progress}px`;
 
   panel?.setAttribute("data-vaul-animate", "false");
@@ -122,6 +136,13 @@ function applySidebarMobileDragStyles({
     inset.setAttribute("data-vaul-animate", "false");
     inset.style.translate = translate;
     inset.style.transition = settling
+      ? SIDEBAR_MOBILE_SHELF_SETTLE_TRANSITION
+      : "none";
+  }
+
+  for (const companion of companions) {
+    companion.style.translate = translate;
+    companion.style.transition = settling
       ? SIDEBAR_MOBILE_SHELF_SETTLE_TRANSITION
       : "none";
   }
@@ -145,7 +166,7 @@ function clearSidebarMobileDragAttributes() {
 }
 
 function clearSidebarMobileDragStyles() {
-  const { panel, backdrop, inset } = getSidebarMobileMotionNodes();
+  const { panel, backdrop, inset, companions } = getSidebarMobileMotionNodes();
 
   panel?.removeAttribute("data-vaul-animate");
 
@@ -153,6 +174,11 @@ function clearSidebarMobileDragStyles() {
     inset.removeAttribute("data-vaul-animate");
     inset.style.translate = "";
     inset.style.transition = "";
+  }
+
+  for (const companion of companions) {
+    companion.style.translate = "";
+    companion.style.transition = "";
   }
 
   if (backdrop !== null) {
@@ -1563,6 +1589,62 @@ const SidebarInset = React.forwardRef<
 });
 SidebarInset.displayName = "SidebarInset";
 
+const SidebarShelfCompanion = React.forwardRef<
+  HTMLDivElement,
+  React.ComponentProps<"div">
+>(({ className, style, ...props }, ref) => {
+  const isCompactViewport = useIsCompactViewport();
+  const isSidebarShelfShowing = React.useSyncExternalStore(
+    subscribeCompactSidebarDrawerShowing,
+    isCompactSidebarDrawerShowing,
+    () => false,
+  );
+  const secondaryPanelPresentation = React.useSyncExternalStore(
+    subscribeCompactSecondaryPanelShelfShowing,
+    getCompactSecondaryPanelPresentation,
+    () => "closed" as const,
+  );
+  const shelfState = isCompactViewport
+    ? isSidebarShelfShowing
+      ? "open"
+      : "closed"
+    : undefined;
+  const panelShelfState =
+    isCompactViewport && !isSidebarShelfShowing
+      ? secondaryPanelPresentation
+      : undefined;
+  const isShelfEngaged =
+    shelfState === "open" ||
+    panelShelfState === "shelf" ||
+    panelShelfState === "full";
+
+  return (
+    <div
+      ref={ref}
+      data-sidebar-shelf-companion=""
+      data-sidebar-shelf={shelfState}
+      data-panel-shelf={panelShelfState}
+      data-shelf-engaged={isShelfEngaged ? "" : undefined}
+      className={cn(
+        "group/sidebar-shelf-companion contents max-md:pointer-events-none max-md:fixed max-md:inset-0 max-md:block",
+        SIDEBAR_MOBILE_SHELF_INSET_TRANSITION_CLASS,
+        "data-[sidebar-shelf=open]:translate-x-(--sidebar-width-mobile)",
+        "data-[panel-shelf=shelf]:-translate-x-(--secondary-panel-width-mobile)",
+        "data-[panel-shelf=full]:-translate-x-full",
+        className,
+      )}
+      style={
+        {
+          ...sidebarMobileWidthStyle,
+          ...style,
+        } as SidebarMobileWidthStyle
+      }
+      {...props}
+    />
+  );
+});
+SidebarShelfCompanion.displayName = "SidebarShelfCompanion";
+
 const SidebarFooter = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div">
@@ -1812,6 +1894,7 @@ export {
   SidebarFooter,
   SidebarGroupContent,
   SidebarInset,
+  SidebarShelfCompanion,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -1826,4 +1909,5 @@ export {
   useOptionalIsSidebarShowing,
   useSidebar,
   useSidebarContentElementRef,
+  getSidebarShelfCompanions,
 };

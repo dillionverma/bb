@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CompactSecondaryPanelShelf } from "./CompactSecondaryPanelShelf";
@@ -161,6 +167,38 @@ describe("CompactSecondaryPanelShelf", () => {
     fireTouch(window, "touchend", createTouch(240, 164));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("drags shelf companions with the page and releases them once the close settles", () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <div data-sidebar-shelf-companion="" data-testid="shelf-companion" />,
+      );
+      const { onClose } = renderShelf(true);
+      const shelf = screen.getByTestId("secondary-panel-shelf");
+      const dismiss = screen.getByTestId("secondary-panel-shelf-dismiss");
+      const companion = screen.getByTestId("shelf-companion");
+      Object.defineProperty(shelf, "clientWidth", { value: 300 });
+
+      fireTouch(dismiss, "touchstart", createTouch(60, 160));
+      fireTouch(window, "touchmove", createTouch(240, 164));
+      expect(companion.style.translate).toBe("-120px");
+      expect(companion.style.transition).toBe("none");
+
+      fireTouch(window, "touchend", createTouch(240, 164));
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(companion.style.translate).toBe("0px");
+      expect(companion.style.transition).not.toBe("none");
+
+      act(() => {
+        vi.advanceTimersByTime(220);
+      });
+      expect(companion.style.translate).toBe("");
+      expect(companion.style.transition).toBe("");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each(["before touch", "after long press"])(

@@ -2098,7 +2098,12 @@ The pane-local code-highlighting worker pool is not inherited here; its hooks
 support rendering without a pool. Hooks whose contract
 requires a particular surface, including `useComposer` and `useComposerView`,
 remain limited to that surface. One overlay crash hides only that registration;
-sibling overlays remain mounted.
+sibling overlays remain mounted. On compact viewports the host frames every
+overlay in one fixed, viewport-sized layer at the plugin overlay z band. The
+layer translates with the page while the left sidebar shelf or the right panel
+shelf reveals, including swipe drags, and ignores pointer input while a shelf
+is showing, so page-anchored fixed UI never covers an open shelf. Desktop
+viewports add no frame, and the plugin's own `z-index` applies there directly.
 
 **Audit before stabilizing.**
 
@@ -2108,9 +2113,9 @@ sibling overlays remain mounted.
 2. **App-level versus pane-level context.** Define the selected route in split
    layouts and document which pane-local capabilities remain unavailable to a
    once-per-window owner, including composer and side-panel hosts.
-3. **Host-owned layer.** Decide whether arbitrary fixed/portalled content is
-   sufficient or BB should provide a named overlay root, z-index band,
-   collision area, docking, or drag persistence.
+3. **Host-owned layer.** The compact frame is the first host-owned layer.
+   Decide whether desktop needs the same named root and z-index band, and
+   whether BB should provide a collision area, docking, or drag persistence.
 4. **Responsive and accessibility policy.** Audit keyboard access, focus
    restoration, escape behavior, compact drawers, reduced motion, and whether
    any of those must become host-owned rather than plugin-owned.

@@ -12,7 +12,11 @@ import { createPortal } from "react-dom";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CompactViewportOverrideProvider } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { ThreadActionsProvider } from "@/components/thread/ThreadActionsProvider";
+import { APP_OVERLAY_LAYER } from "@/components/ui/app-overlay-layers";
+import { setCompactSecondaryPanelPresentation } from "@/components/ui/secondary-panel-shelf-visibility";
+import { setCompactSidebarDrawerShowing } from "@/components/ui/sidebar-mobile-drawer-visibility";
 import { RouteNavigationProvider } from "@/components/ui/app-route-anchor";
 import {
   resetPluginSlotStoreForTest,
@@ -117,11 +121,90 @@ afterEach(() => {
   cleanup();
   resetPluginSlotStoreForTest();
   resetAllCrashedPluginSlotsForTest();
+  setCompactSidebarDrawerShowing(false);
+  setCompactSecondaryPanelPresentation("closed");
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
 describe("PluginAppOverlays", () => {
+  it("frames overlays with the page behind compact shelves", () => {
+    function Widget() {
+      return <div>page widget</div>;
+    }
+    setPluginSlotRegistrations(
+      "office",
+      registrationSet({
+        appOverlays: [{ id: "widget", component: Widget }],
+      }),
+    );
+    render(
+      <CompactViewportOverrideProvider isCompactViewport>
+        <MemoryRouter>
+          <PluginAppOverlays />
+        </MemoryRouter>
+      </CompactViewportOverrideProvider>,
+    );
+
+    const host = document.querySelector("[data-bb-plugin-app-overlays]");
+    if (!(host instanceof HTMLElement)) {
+      throw new Error("overlay host did not mount");
+    }
+    expect(host.hasAttribute("data-sidebar-shelf-companion")).toBe(true);
+    expect(host.style.zIndex).toBe(String(APP_OVERLAY_LAYER.pluginAppOverlays));
+    expect(host.dataset.sidebarShelf).toBe("closed");
+    expect(host.hasAttribute("data-shelf-engaged")).toBe(false);
+
+    const frame = screen
+      .getByText("page widget")
+      .closest("[data-bb-plugin-app-overlay-frame]");
+    expect(frame?.className).toContain("max-md:pointer-events-auto");
+    expect(frame?.className).toContain(
+      "group-data-[shelf-engaged]/sidebar-shelf-companion:pointer-events-none",
+    );
+
+    act(() => {
+      setCompactSidebarDrawerShowing(true);
+    });
+    expect(host.dataset.sidebarShelf).toBe("open");
+    expect(host.hasAttribute("data-shelf-engaged")).toBe(true);
+
+    act(() => {
+      setCompactSidebarDrawerShowing(false);
+      setCompactSecondaryPanelPresentation("full");
+    });
+    expect(host.dataset.sidebarShelf).toBe("closed");
+    expect(host.dataset.panelShelf).toBe("full");
+    expect(host.hasAttribute("data-shelf-engaged")).toBe(true);
+  });
+
+  it("adds no frame around overlays on desktop", () => {
+    function Widget() {
+      return <div>page widget</div>;
+    }
+    setPluginSlotRegistrations(
+      "office",
+      registrationSet({
+        appOverlays: [{ id: "widget", component: Widget }],
+      }),
+    );
+    render(
+      <CompactViewportOverrideProvider isCompactViewport={false}>
+        <MemoryRouter>
+          <PluginAppOverlays />
+        </MemoryRouter>
+      </CompactViewportOverrideProvider>,
+    );
+
+    const host = document.querySelector("[data-bb-plugin-app-overlays]");
+    if (!(host instanceof HTMLElement)) {
+      throw new Error("overlay host did not mount");
+    }
+    expect(host.className).toContain("contents");
+    expect(host.dataset.sidebarShelf).toBeUndefined();
+    expect(host.dataset.panelShelf).toBeUndefined();
+  });
+
   it("does not render an existing overlay when another one registers", () => {
     const firstRender = vi.fn();
     function First() {

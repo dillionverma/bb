@@ -12,6 +12,7 @@ import { cn } from "@bb/shared-ui/lib/utils";
 import { usePersistentOverlayFocus } from "@bb/shared-ui/responsive-overlay";
 import { APP_OVERLAY_LAYER } from "@/components/ui/app-overlay-layers";
 import { hasTextSelectionWithin } from "@/components/ui/gesture-dom";
+import { getSidebarShelfCompanions } from "@/components/ui/sidebar";
 import { useHorizontalDismissDrag } from "@/components/ui/use-horizontal-dismiss-drag";
 import {
   setCompactSecondaryPanelPresentation,
@@ -45,6 +46,7 @@ export function CompactSecondaryPanelShelf({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const dismissRef = useRef<HTMLDivElement | null>(null);
   const draggedInsetRef = useRef<HTMLElement | null>(null);
+  const draggedCompanionsRef = useRef<readonly HTMLElement[]>([]);
   const state = !open ? "closed" : presentation;
   const onCloseRef = useRef(onClose);
   useLayoutEffect(() => {
@@ -59,6 +61,11 @@ export function CompactSecondaryPanelShelf({
       inset.style.transition = "";
       draggedInsetRef.current = null;
     }
+    for (const companion of draggedCompanionsRef.current) {
+      companion.style.translate = "";
+      companion.style.transition = "";
+    }
+    draggedCompanionsRef.current = [];
     const dismiss = dismissRef.current;
     if (dismiss !== null) {
       dismiss.style.translate = "";
@@ -88,6 +95,12 @@ export function CompactSecondaryPanelShelf({
         draggedInsetRef.current = inset;
         inset.style.translate = translate;
         inset.style.transition = transition;
+      }
+      const companions = getSidebarShelfCompanions(panel.ownerDocument);
+      draggedCompanionsRef.current = companions;
+      for (const companion of companions) {
+        companion.style.translate = translate;
+        companion.style.transition = transition;
       }
       dismiss.style.translate = translate;
       dismiss.style.transition = transition;

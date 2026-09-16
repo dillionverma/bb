@@ -17,11 +17,13 @@ import {
   SidebarContent,
   SidebarInset,
   SidebarProvider,
+  SidebarShelfCompanion,
   SidebarTrigger,
   useIsSidebarShowing,
   useOptionalIsSidebarShowing,
   useSidebar,
 } from "./sidebar";
+import { setCompactSecondaryPanelPresentation } from "./secondary-panel-shelf-visibility";
 
 afterEach(() => {
   cleanup();
@@ -431,6 +433,73 @@ describe("mobile sidebar shelf stacking", () => {
 
     expect(inset.dataset.sidebarShelf).toBe("open");
     expect(getMobilePanel()?.style.translate).toBe("");
+  });
+
+  it("moves shelf companions outside the provider with the page", () => {
+    vi.useFakeTimers();
+    render(
+      <CompactViewportOverrideProvider isCompactViewport>
+        <SidebarProvider>
+          <Sidebar>Sidebar content</Sidebar>
+          <SidebarInset>
+            <SidebarTrigger />
+            Main content
+          </SidebarInset>
+        </SidebarProvider>
+        <SidebarShelfCompanion data-testid="shelf-companion">
+          Page overlay
+        </SidebarShelfCompanion>
+      </CompactViewportOverrideProvider>,
+    );
+    settleMobileRealization();
+
+    const companion = screen.getByTestId("shelf-companion");
+    expect(companion.className).toContain("max-md:pointer-events-none");
+    expect(companion.className).toContain(
+      "data-[sidebar-shelf=open]:translate-x-(--sidebar-width-mobile)",
+    );
+    expect(companion.dataset.sidebarShelf).toBe("closed");
+    expect(companion.hasAttribute("data-shelf-engaged")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Sidebar" }));
+    expect(companion.style.translate).toBe(SHELF_OPEN_TRANSLATE);
+    expect(companion.style.translate).toBe(getShelfInsetTranslate());
+    settleMobileToggle();
+    expect(companion.dataset.sidebarShelf).toBe("open");
+    expect(companion.hasAttribute("data-shelf-engaged")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Sidebar" }));
+    expect(companion.style.translate).toBe(SHELF_CLOSED_TRANSLATE);
+    settleMobileToggle();
+    expect(companion.dataset.sidebarShelf).toBe("closed");
+    expect(companion.hasAttribute("data-shelf-engaged")).toBe(false);
+
+    act(() => {
+      setCompactSecondaryPanelPresentation("shelf");
+    });
+    expect(companion.dataset.panelShelf).toBe("shelf");
+    expect(companion.hasAttribute("data-shelf-engaged")).toBe(true);
+    act(() => {
+      setCompactSecondaryPanelPresentation("closed");
+    });
+    expect(companion.dataset.panelShelf).toBe("closed");
+    expect(companion.hasAttribute("data-shelf-engaged")).toBe(false);
+  });
+
+  it("renders shelf companions as pass-through wrappers on desktop", () => {
+    render(
+      <CompactViewportOverrideProvider isCompactViewport={false}>
+        <SidebarShelfCompanion data-testid="shelf-companion">
+          Page overlay
+        </SidebarShelfCompanion>
+      </CompactViewportOverrideProvider>,
+    );
+
+    const companion = screen.getByTestId("shelf-companion");
+    expect(companion.className).toContain("contents");
+    expect(companion.dataset.sidebarShelf).toBeUndefined();
+    expect(companion.dataset.panelShelf).toBeUndefined();
+    expect(companion.hasAttribute("data-shelf-engaged")).toBe(false);
   });
 
   it("keeps the center pane square for both shelves", () => {
