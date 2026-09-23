@@ -129,6 +129,8 @@ const REASONING_CYCLE_COMMANDS = [
 
 const MODEL_SEARCH_MIN_OPTIONS = 5;
 const MODEL_PICKER_MENU_WIDTH_CLASS_NAME = "w-max min-w-64 max-w-80";
+const MODEL_PICKER_BACKGROUND_CLASS_NAME =
+  "bg-red-700 [--background:var(--color-red-700)]";
 
 const HANDOFF_DRAWER_TOP_CLASS_NAME =
   "[&>[data-persistent-drawer-handle]]:w-full [&>[data-persistent-drawer-handle]]:rounded-t-xl [&>[data-persistent-drawer-handle]]:bg-background";
@@ -1037,14 +1039,16 @@ export function ModelReasoningPicker({
       <PopoverContent
         align={align}
         mobileTitle={handoffMode ? "Handoff to new thread" : "Model"}
-        mobileClassName={
-          handoffMode ? HANDOFF_DRAWER_TOP_CLASS_NAME : undefined
-        }
+        mobileClassName={cn(
+          MODEL_PICKER_BACKGROUND_CLASS_NAME,
+          handoffMode && HANDOFF_DRAWER_TOP_CLASS_NAME,
+        )}
         onKeyDown={handleReasoningArrowKeyDown}
         onMobileContentAnimationEnd={handleMobileContentAnimationEnd}
         autoFocusRef={showSearchInput ? searchInputRef : undefined}
         className={cn(
           "flex min-h-0 flex-col p-0",
+          MODEL_PICKER_BACKGROUND_CLASS_NAME,
           MODEL_PICKER_MENU_WIDTH_CLASS_NAME,
           isCompactViewport
             ? "overflow-y-hidden"
@@ -1473,6 +1477,7 @@ function MoreModelsSubmenu({
         sideOffset={6}
         className={cn(
           "flex flex-col p-1 data-[state=closed]:animate-none",
+          MODEL_PICKER_BACKGROUND_CLASS_NAME,
           MODEL_PICKER_MENU_WIDTH_CLASS_NAME,
         )}
         onKeyDown={(event) => {
