@@ -124,6 +124,21 @@ describe("ui preferences sync", () => {
     expect(mocks.set).not.toHaveBeenCalled();
   });
 
+  it("hydrates pins when the lazy composer registers after preferences have loaded", () => {
+    const { queryClient, store } = createHarness();
+    const pins = [{ providerId: "codex", model: "saved-model" }];
+    setCachedUiPreferences(
+      queryClient,
+      serverResponse({
+        "modelPicker.pinnedModels": { revision: 1, value: pins },
+      }),
+    );
+    startUiPreferencesSync({ queryClient, store });
+    const pinsAtom = createSyncedPreferenceAtom("modelPicker.pinnedModels");
+    expect(store.get(pinsAtom)).toEqual(pins);
+    expect(mocks.set).not.toHaveBeenCalled();
+  });
+
   it("keeps edits local without an error notification when the server lacks the entry", async () => {
     const { orderAtom, queryClient, store } = createHarness();
     startUiPreferencesSync({ queryClient, store });

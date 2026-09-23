@@ -159,6 +159,7 @@ function renderPicker({
   modelIsLoading = false,
   modelLoadError = null,
   compact = false,
+  separateEffort = false,
   splitPane = false,
   muted = false,
   handoff,
@@ -178,6 +179,7 @@ function renderPicker({
   modelIsLoading?: boolean;
   modelLoadError?: SystemExecutionOptionsModelLoadError | null;
   compact?: boolean;
+  separateEffort?: boolean;
   splitPane?: boolean;
   muted?: boolean;
   handoff?: ModelReasoningPickerHandoff;
@@ -203,6 +205,7 @@ function renderPicker({
   const picker = (
     <div data-app-composer>
       <ModelReasoningPicker
+        separateEffort={separateEffort}
         providerOptions={pickerProviderOptions}
         providerRouting={providerRouting}
         selectedProviderId={selectedProviderId}
@@ -255,6 +258,38 @@ afterEach(() => {
 });
 
 describe("ModelReasoningPicker", () => {
+  it("clears the composer search when the retained compact drawer closes", async () => {
+    renderPicker({
+      compact: true,
+      separateEffort: true,
+      modelOptions: manyCodexModels,
+    });
+    const trigger = screen.getByRole("button", {
+      name: "Provider, model and reasoning",
+    });
+    fireEvent.click(trigger);
+    const input = await screen.findByRole("combobox", {
+      name: "Search models",
+    });
+    fireEvent.change(input, { target: { value: "o4" } });
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.transitionEnd(
+      document.querySelector("[data-persistent-drawer-content]") as HTMLElement,
+      {
+        propertyName: "transform",
+      },
+    );
+    fireEvent.click(trigger);
+    expect(
+      (
+        (await screen.findByRole("combobox", {
+          name: "Search models",
+        })) as HTMLInputElement
+      ).value,
+    ).toBe("");
+    expect(document.querySelector("[inert]")).toBeNull();
+  });
+
   it.each([
     ["ArrowRight", "medium", "high"],
     ["ArrowLeft", "high", "medium"],

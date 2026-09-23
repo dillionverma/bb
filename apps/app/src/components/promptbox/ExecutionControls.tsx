@@ -5,10 +5,8 @@ import type {
   SystemProvidersQuery,
 } from "@bb/server-contract";
 import { formatModelLabel } from "@/hooks/useThreadCreationOptions";
-import {
-  ModelReasoningPicker,
-  type ModelReasoningPickerHandoff,
-} from "@/components/pickers/ModelReasoningPicker";
+import { type ModelReasoningPickerHandoff } from "@/components/pickers/ModelReasoningPicker";
+import { ModelControls } from "@/components/pickers/ModelControls";
 import { type PickerOption } from "@/components/pickers/OptionPicker";
 import type { ModelPickerOption } from "@/components/pickers/model-picker-option";
 import type { ProviderPickerOption } from "@/components/pickers/model-brand-prefix";
@@ -91,7 +89,7 @@ export const ExecutionControls = memo(function ExecutionControls({
   return (
     <>
       {showModelPicker ? (
-        <ModelReasoningPicker
+        <ModelControls
           providerOptions={provider.options ?? []}
           providerRouting={providerRouting}
           selectedProviderId={selectedProviderId}

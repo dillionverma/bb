@@ -33,6 +33,7 @@ const uiPreferenceStringListSchema = z
   .max(UI_PREFERENCE_LIST_MAX_LENGTH);
 
 export const UI_PREFERENCE_KEYS = [
+  "modelPicker.pinnedModels",
   "sidebar.organizationMode",
   "sidebar.chronologicalSort",
   "sidebar.sortDirection",
@@ -74,6 +75,18 @@ function defineUiPreference<Schema extends z.ZodTypeAny>(
 }
 
 export const uiPreferenceDefinitions = {
+  "modelPicker.pinnedModels": defineUiPreference(
+    z
+      .array(
+        z.object({
+          providerId: uiPreferenceStringSchema,
+          model: uiPreferenceStringSchema,
+        }),
+      )
+      .max(100),
+    [],
+    "Pinned models in display order, identified by providerId and model. Unavailable models remain saved but are not offered for selection.",
+  ),
   "sidebar.organizationMode": defineUiPreference(
     sidebarOrganizationModeSchema,
     "chronological",

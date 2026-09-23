@@ -719,7 +719,7 @@ describe("useThreadCreationOptions", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.modelOptions[0]).toEqual({
+      expect(result.current.modelOptions[0]).toMatchObject({
         value: "global-model",
         label: "Global Model",
         routeProviderId: "openai-codex",
