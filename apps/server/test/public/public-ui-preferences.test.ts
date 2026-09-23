@@ -29,6 +29,33 @@ async function resetPreference(
 }
 
 describe("public ui preferences", () => {
+  it("preserves pinned model order and provider identity, validates entries, and resets pins", async () => {
+    await withTestHarness(async (harness) => {
+      const key = "modelPicker.pinnedModels";
+      const value = [
+        { providerId: "codex", model: "same-model" },
+        { providerId: "unavailable-provider", model: "same-model" },
+      ];
+      expect(
+        (await putPreference(harness, key, { expectedRevision: 0, value }))
+          .status,
+      ).toBe(200);
+      expect(await readJson(await listPreferences(harness))).toMatchObject({
+        preferences: { [key]: { revision: 1, value } },
+      });
+      expect(
+        (
+          await putPreference(harness, key, {
+            expectedRevision: 1,
+            value: [{ model: "missing-provider" }],
+          })
+        ).status,
+      ).toBe(400);
+      expect(await readJson(await resetPreference(harness, key))).toMatchObject(
+        { value: [] },
+      );
+    });
+  });
   it("retains unavailable footer IDs and rejects malformed footer preferences", async () => {
     await withTestHarness(async (harness) => {
       for (const key of ["sidebar.footerOrder", "sidebar.hiddenFooterItems"]) {

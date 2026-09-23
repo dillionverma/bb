@@ -310,3 +310,27 @@ or with `bb settings general telemetryEnabled false`. The saved server-wide pref
 takes effect immediately and persists across restarts. SDK callers can use
 `system.updateGeneralSettings` with `telemetryEnabled`. `BB_TELEMETRY=false`
 always disables telemetry, even when the saved preference is enabled.
+
+
+## Composer model controls
+
+The composer has a searchable model picker with pinned models and a separate
+thinking-effort control. The effort slider uses the selected model's supported
+levels. Its menu explains each level, offers the model default, and lists
+delegation modes separately. Compact screens use the shared drawer. Existing
+model/reasoning keyboard commands and thread selection preferences still apply.
+
+`modelPicker.pinnedModels` is a server-synced UI preference: an ordered JSON
+array of `{ "providerId": "...", "model": "..." }` entries (up to 100). Pins
+appear first within their provider. Unavailable models remain saved but are not
+offered for selection. Use model IDs from `bb provider models`.
+
+```sh
+bb settings ui get modelPicker.pinnedModels --json
+bb settings ui set modelPicker.pinnedModels '[{"providerId":"codex","model":"gpt-5.5"}]'
+bb settings ui reset modelPicker.pinnedModels
+```
+
+The same setting is available through `sdk.system.uiPreferences.list()`,
+`.set({ key: "modelPicker.pinnedModels", value, expectedRevision })`, and
+`.reset({ key: "modelPicker.pinnedModels" })`.

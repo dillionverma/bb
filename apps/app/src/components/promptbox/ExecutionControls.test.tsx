@@ -50,6 +50,34 @@ afterEach(() => {
 });
 
 describe("ExecutionControls", () => {
+  it("separates effort changes from model selection and closes after selecting a model", () => {
+    const props = makeExecutionControlsProps();
+    props.model.options = [
+      ...props.model.options,
+      { value: "other", label: "Other" },
+    ];
+    props.reasoning.options = [
+      ...props.reasoning.options,
+      { value: "high", label: "High" },
+    ];
+    renderExecutionControls(props);
+
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Thinking effort" }), {
+      key: "End",
+    });
+    expect(props.reasoning.onChange).toHaveBeenCalledWith("high");
+    expect(props.model.onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Provider, model and reasoning" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Other" }));
+    expect(props.model.onChange).toHaveBeenCalledWith("other");
+    expect(
+      screen.queryByRole("combobox", { name: "Search models" }),
+    ).toBeNull();
+  });
+
   it("hides provider tabs when the provider is locked", () => {
     renderExecutionControls(makeExecutionControlsProps());
 
@@ -59,7 +87,9 @@ describe("ExecutionControls", () => {
       }),
     );
 
-    expect(screen.queryByText("Model")).not.toBeNull();
+    expect(
+      screen.getByRole("combobox", { name: "Search models" }),
+    ).not.toBeNull();
     expect(screen.queryByTitle("Claude Code")).toBeNull();
   });
 

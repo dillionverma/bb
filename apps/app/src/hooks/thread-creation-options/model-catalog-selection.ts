@@ -52,6 +52,8 @@ function toModelPickerOption(
   return {
     value: model.model,
     label: formatModelLabel(model.displayName || model.model),
+    description: model.description,
+    defaultReasoningEffort: model.defaultReasoningEffort,
     ...(model.routeProviderId
       ? { routeProviderId: model.routeProviderId }
       : {}),
@@ -123,6 +125,7 @@ export function resolveModelCatalogSelection({
     reasoningOptions.push({
       value: effort.reasoningEffort,
       label: reasoningLevelLabel(effort.reasoningEffort, provider),
+      description: effort.description,
     });
   }
 
