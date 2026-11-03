@@ -1242,6 +1242,8 @@ function repairBranchLocalQueuedGroupingBeforeInitialThreadSections(
 const STAGED_CONNECT_MACHINE_ID_COLUMN = "_bb_connect_machine_id_pending";
 const STAGED_THREAD_STORAGE_DELETED_AT_COLUMN =
   "_bb_thread_storage_deleted_at_pending";
+const STAGED_INTERACTION_RESOLVED_BY_COLUMN =
+  "_bb_interaction_resolved_by_pending";
 
 function stageExistingConnectMachineIdColumn(
   db: DbConnection,
@@ -1322,6 +1324,52 @@ function restoreStagedThreadStorageDeletedAtColumn(db: DbConnection): void {
   db.$client.exec(
     `UPDATE threads SET storage_deleted_at = ${STAGED_THREAD_STORAGE_DELETED_AT_COLUMN};
      ALTER TABLE threads DROP COLUMN ${STAGED_THREAD_STORAGE_DELETED_AT_COLUMN};`,
+  );
+}
+
+function stageExistingInteractionResolvedByColumn(
+  db: DbConnection,
+  migrationsFolder: string,
+): boolean {
+  if (
+    !tableExists(db, "__drizzle_migrations") ||
+    !tableExists(db, "pending_interactions") ||
+    !columnExists(db, "pending_interactions", "resolved_by")
+  ) {
+    return false;
+  }
+  const migration = requireExpectedAppliedMigration(
+    readExpectedAppliedMigrations(migrationsFolder),
+    "0121_interaction_resolved_by",
+  );
+  if (readAppliedMigrationCreatedAts(db).has(migration.createdAt)) {
+    return false;
+  }
+  db.$client.exec(
+    `ALTER TABLE pending_interactions RENAME COLUMN resolved_by TO ${STAGED_INTERACTION_RESOLVED_BY_COLUMN}`,
+  );
+  return true;
+}
+
+function restoreStagedInteractionResolvedByColumn(db: DbConnection): void {
+  if (
+    !columnExists(
+      db,
+      "pending_interactions",
+      STAGED_INTERACTION_RESOLVED_BY_COLUMN,
+    )
+  ) {
+    return;
+  }
+  if (!columnExists(db, "pending_interactions", "resolved_by")) {
+    db.$client.exec(
+      `ALTER TABLE pending_interactions RENAME COLUMN ${STAGED_INTERACTION_RESOLVED_BY_COLUMN} TO resolved_by`,
+    );
+    return;
+  }
+  db.$client.exec(
+    `UPDATE pending_interactions SET resolved_by = ${STAGED_INTERACTION_RESOLVED_BY_COLUMN};
+     ALTER TABLE pending_interactions DROP COLUMN ${STAGED_INTERACTION_RESOLVED_BY_COLUMN};`,
   );
 }
 
@@ -1417,6 +1465,16 @@ function repairBranchLocalThreadTabsBeforePendingInteractionsMigration(
   }
 
   applyMigrationStatements(db, pendingInteractionsMigration);
+  const resolvedByMigration = requireExpectedAppliedMigration(
+    expectedMigrations,
+    "0121_interaction_resolved_by",
+  );
+  if (
+    appliedCreatedAts.has(resolvedByMigration.createdAt) &&
+    !columnExists(db, "pending_interactions", "resolved_by")
+  ) {
+    applyMigrationStatements(db, resolvedByMigration);
+  }
 }
 
 function warnAboutFutureAppliedMigrations(
@@ -1564,12 +1622,16 @@ export function migrate(db: DbConnection, options: MigrateOptions = {}): void {
     );
     const stagedThreadStorageDeletedAt =
       stageExistingThreadStorageDeletedAtColumn(db, migrationsFolder);
+    const stagedInteractionResolvedBy =
+      stageExistingInteractionResolvedByColumn(db, migrationsFolder);
     try {
       drizzleMigrate(db, { migrationsFolder });
     } finally {
       if (stagedConnectMachineId) restoreStagedConnectMachineIdColumn(db);
       if (stagedThreadStorageDeletedAt)
         restoreStagedThreadStorageDeletedAtColumn(db);
+      if (stagedInteractionResolvedBy)
+        restoreStagedInteractionResolvedByColumn(db);
     }
     applyReorderedCleanupMigrations(db, migrationsFolder);
     applyQueuedMessageGroupingSchema(db);
