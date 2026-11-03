@@ -192,11 +192,23 @@ describe("interaction lifecycle record", () => {
       resolvedAt: 2,
       payload: approvalPayload,
       resolution: { decision: "deny" },
+      resolvedBy: {
+        kind: "agent",
+        surface: "api",
+        gateAuth: null,
+        requestingThreadId: "thr_agent",
+      },
     });
     expect(lifecycle).toEqual({
       id: "pint_1",
       status: "resolved",
       statusReason: null,
+      resolvedBy: {
+        kind: "agent",
+        surface: "api",
+        gateAuth: null,
+        requestingThreadId: "thr_agent",
+      },
       origin: {
         kind: "provider",
         providerId: "codex",
@@ -234,6 +246,7 @@ describe("interaction lifecycle record", () => {
       id: "pint_2",
       status: "pending",
       statusReason: null,
+      resolvedBy: null,
       origin: {
         kind: "plugin",
         pluginId: "secrets",
@@ -297,6 +310,7 @@ describe("plugin-defined request on the wire", () => {
       id: "pint_3",
       status: "resolved",
       statusReason: null,
+      resolvedBy: null,
       origin: {
         kind: "provider",
         providerId: "acp-cursor",
