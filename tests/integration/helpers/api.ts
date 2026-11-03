@@ -456,10 +456,14 @@ export async function resolveThreadInteraction(
 ): Promise<PendingInteraction> {
   const response = await args.api.threads[":id"].interactions[
     ":interactionId"
-  ].resolve.$post({
-    param: { id: args.threadId, interactionId: args.interactionId },
-    json: args.resolution,
-  });
+  ].resolve.$post(
+    {
+      param: { id: args.threadId, interactionId: args.interactionId },
+      json: args.resolution,
+    },
+    // Answers to provider questions are accepted only from the BB app.
+    { headers: { "x-bb-app-surface": "desktop" } },
+  );
   await expectStatus(
     response,
     200,
