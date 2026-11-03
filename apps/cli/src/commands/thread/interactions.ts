@@ -20,6 +20,7 @@ import {
   parseExtensionKind,
   PendingInteraction,
   type ApprovalPendingInteraction,
+  type InteractionResolver,
   type JsonValue,
   type PluginExtensionPendingInteraction,
   type PluginPendingInteraction,
@@ -289,6 +290,22 @@ function printRequestedPermissions(
   }
 }
 
+function formatInteractionResolver(resolver: InteractionResolver): string {
+  const via = resolver.gateAuth
+    ? `${resolver.surface}, gate ${resolver.gateAuth}`
+    : resolver.surface;
+  switch (resolver.kind) {
+    case "ui":
+      return `BB app (${via})`;
+    case "agent":
+      return `agent thread ${resolver.requestingThreadId} (${via})`;
+    case "api":
+      return `API caller (${via})`;
+    default:
+      return assertNever(resolver.kind);
+  }
+}
+
 function printInteraction(interaction: PendingInteraction): void {
   console.log(`Interaction: ${interaction.id}`);
   console.log(`  Thread: ${interaction.threadId}`);
@@ -298,6 +315,11 @@ function printInteraction(interaction: PendingInteraction): void {
   if (interaction.resolvedAt !== null) {
     console.log(
       `  Resolved: ${new Date(interaction.resolvedAt).toLocaleString()}`,
+    );
+  }
+  if (interaction.resolvedBy) {
+    console.log(
+      `  Resolved by: ${formatInteractionResolver(interaction.resolvedBy)}`,
     );
   }
   if (interaction.statusReason) {

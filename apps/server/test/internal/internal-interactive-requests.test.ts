@@ -26,6 +26,7 @@ import {
   createCommandApprovalPayload,
   createPermissionGrantApprovalPayload,
   createUserQuestionPayload,
+  UI_RESOLVER,
 } from "../helpers/pending-interactions.js";
 import { createTestAppHarness, withTestHarness } from "../helpers/test-app.js";
 
@@ -163,6 +164,7 @@ describe("internal interactive request lifecycle", () => {
       });
       const resolved =
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId,
           resolution: createAllowOnceResolution(),
@@ -323,6 +325,7 @@ describe("internal interactive request lifecycle", () => {
       });
       const resolved =
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId,
           resolution: sessionResolution,
@@ -702,6 +705,7 @@ describe("internal interactive request lifecycle", () => {
         threadId: thread.id,
       });
       harness.deps.pendingInteractions.resolvePendingInteraction({
+        resolver: UI_RESOLVER,
         threadId: thread.id,
         interactionId,
         resolution: createAllowOnceResolution(),
@@ -1038,6 +1042,7 @@ describe("internal interactive request lifecycle", () => {
       });
       const resolved =
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId,
           resolution: createAllowForSessionResolution({

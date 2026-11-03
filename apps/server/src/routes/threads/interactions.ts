@@ -8,6 +8,7 @@ import type { Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
+import { resolveInteractionResolver } from "../../request-context.js";
 import { requirePublicThread } from "../../services/lib/entity-lookup.js";
 
 const pendingInteractionIdSchema = z
@@ -64,6 +65,7 @@ export function registerThreadInteractionRoutes(
           context.req.param("interactionId"),
         ),
         resolution: payload,
+        resolver: resolveInteractionResolver(context),
       }),
     );
   });
@@ -87,6 +89,7 @@ export function registerThreadInteractionRoutes(
           context.req.param("interactionId"),
         ),
         value: payload.value,
+        resolver: resolveInteractionResolver(context),
       }),
     );
   });

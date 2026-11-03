@@ -29,6 +29,7 @@ import {
   createToolUseApprovalPayload,
   createUserAnswerResolution,
   createUserQuestionPayload,
+  UI_RESOLVER,
 } from "../helpers/pending-interactions.js";
 import { withTestHarness } from "../helpers/test-app.js";
 
@@ -134,6 +135,7 @@ describe("pending interaction lifecycle", () => {
       expect(interaction?.payload.kind).toBe("plugin");
 
       harness.deps.pendingInteractions.respondToPluginInteraction({
+        resolver: UI_RESOLVER,
         threadId: thread.id,
         interactionId: interaction!.id,
         value: { values: { API_KEY: "sentinel-secret-value" } },
@@ -172,6 +174,7 @@ describe("pending interaction lifecycle", () => {
 
       expect(
         harness.deps.pendingInteractions.respondToPluginInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: interaction!.id,
           value: { values: { API_KEY: "sentinel-secret-value" } },
@@ -475,6 +478,7 @@ describe("pending interaction lifecycle", () => {
       });
       const resolving =
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: answerResolution,
@@ -558,6 +562,7 @@ describe("pending interaction lifecycle", () => {
       });
       expect(() =>
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createUserAnswerResolution(),
@@ -609,6 +614,7 @@ describe("pending interaction lifecycle", () => {
       }
 
       harness.deps.pendingInteractions.resolvePendingInteraction({
+        resolver: UI_RESOLVER,
         threadId: thread.id,
         interactionId: created.interaction.id,
         resolution: createAllowOnceResolution(),
@@ -912,6 +918,7 @@ describe("pending interaction lifecycle", () => {
 
       const firstResolution =
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createAllowOnceResolution({
@@ -926,6 +933,7 @@ describe("pending interaction lifecycle", () => {
 
       const retryResolution =
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createAllowOnceResolution({
@@ -1024,6 +1032,7 @@ describe("pending interaction lifecycle", () => {
 
       expect(() =>
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createAllowForSessionResolution({
@@ -1088,6 +1097,7 @@ describe("pending interaction lifecycle", () => {
       }
 
       harness.deps.pendingInteractions.resolvePendingInteraction({
+        resolver: UI_RESOLVER,
         threadId: thread.id,
         interactionId: created.interaction.id,
         resolution: createAllowOnceResolution({
@@ -1150,6 +1160,7 @@ describe("pending interaction lifecycle", () => {
 
       expect(
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createDenyResolution(),
@@ -1217,6 +1228,7 @@ describe("pending interaction lifecycle", () => {
         fileSystem: null,
       });
       harness.deps.pendingInteractions.resolvePendingInteraction({
+        resolver: UI_RESOLVER,
         threadId: thread.id,
         interactionId: grant.interaction.id,
         resolution,
@@ -1260,6 +1272,7 @@ describe("pending interaction lifecycle", () => {
             id: grant.interaction.id,
             status: "resolving",
             resolution,
+            resolvedBy: UI_RESOLVER,
           }),
         },
         {
@@ -1268,6 +1281,7 @@ describe("pending interaction lifecycle", () => {
             id: grant.interaction.id,
             status: "resolved",
             resolution,
+            resolvedBy: UI_RESOLVER,
           }),
         },
       ]);
@@ -1284,6 +1298,7 @@ describe("pending interaction lifecycle", () => {
           thread.id,
         );
       harness.deps.pendingInteractions.respondToPluginInteraction({
+        resolver: UI_RESOLVER,
         threadId: thread.id,
         interactionId: pluginInteraction!.id,
         value: { values: { API_KEY: "x" } },
@@ -1309,12 +1324,14 @@ describe("pending interaction lifecycle", () => {
           },
           payload: { kind: "plugin", title: "Add secrets" },
           resolution: null,
+          resolvedBy: null,
         },
       });
       expect(JSON.stringify(pluginEvents)).not.toContain("SENTINEL_FIELD");
       expect(pluginEvents[1]?.interaction.resolution).toEqual({
         kind: "plugin_submitted",
       });
+      expect(pluginEvents[1]?.interaction.resolvedBy).toEqual(UI_RESOLVER);
     });
   });
 
@@ -1384,6 +1401,7 @@ describe("pending interaction lifecycle", () => {
 
       const resolution = createDenyResolution();
       harness.deps.pendingInteractions.resolvePendingInteraction({
+        resolver: UI_RESOLVER,
         threadId: thread.id,
         interactionId: created.interaction.id,
         resolution,
@@ -1458,6 +1476,7 @@ describe("pending interaction lifecycle", () => {
       const oversized = { blob: "x".repeat(64 * 1024) };
       expect(() =>
         harness.deps.pendingInteractions.respondToInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           value: oversized,
@@ -1470,6 +1489,7 @@ describe("pending interaction lifecycle", () => {
       );
       expect(() =>
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: { kind: "request_answer", value: oversized },
@@ -1483,6 +1503,7 @@ describe("pending interaction lifecycle", () => {
 
       expect(() =>
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createDenyResolution(),
@@ -1498,6 +1519,7 @@ describe("pending interaction lifecycle", () => {
 
       const answer = { kind: "request_answer", value: { TOKEN: "sentinel-x" } };
       const responding = harness.deps.pendingInteractions.respondToInteraction({
+        resolver: UI_RESOLVER,
         threadId: thread.id,
         interactionId: created.interaction.id,
         value: { TOKEN: "sentinel-x" },
@@ -1590,6 +1612,7 @@ describe("pending interaction lifecycle", () => {
 
       expect(
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createAllowForSessionResolution({
@@ -1656,6 +1679,7 @@ describe("pending interaction lifecycle", () => {
 
       expect(
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createAllowForSessionResolution(null),
@@ -1720,6 +1744,7 @@ describe("pending interaction lifecycle", () => {
 
       expect(() =>
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createAllowForSessionResolution({
@@ -1778,6 +1803,7 @@ describe("pending interaction lifecycle", () => {
 
       expect(() =>
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createAllowForSessionResolution(null),
@@ -1830,6 +1856,7 @@ describe("pending interaction lifecycle", () => {
 
       expect(() =>
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createAllowForSessionResolution({
@@ -2004,6 +2031,7 @@ describe("pending interaction lifecycle", () => {
 
       expect(() =>
         harness.deps.pendingInteractions.resolvePendingInteraction({
+          resolver: UI_RESOLVER,
           threadId: thread.id,
           interactionId: created.interaction.id,
           resolution: createAllowOnceResolution(),
@@ -2100,6 +2128,7 @@ it("rejects a late answer when an abort callback settled the waiter but failed t
     cancel.mockRestore();
     expect(() =>
       harness.deps.pendingInteractions.respondToPluginInteraction({
+        resolver: UI_RESOLVER,
         threadId: thread.id,
         interactionId: interaction!.id,
         value: "lost answer",

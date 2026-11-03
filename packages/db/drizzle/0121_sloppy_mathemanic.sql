@@ -1,0 +1,1 @@
+ALTER TABLE `pending_interactions` ADD `resolved_by` text;

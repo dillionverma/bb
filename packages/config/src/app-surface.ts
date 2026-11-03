@@ -1,5 +1,6 @@
 export const APP_SURFACE_HEADER_NAME = "x-bb-app-surface";
 export const APP_SURFACE_ENV_NAME = "BB_APP_SURFACE";
+export const REQUESTING_THREAD_HEADER_NAME = "x-bb-requesting-thread";
 
 export const APP_SURFACE_VALUES = ["desktop", "web"] as const;
 export type AppSurface = (typeof APP_SURFACE_VALUES)[number];

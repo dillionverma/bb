@@ -193,6 +193,7 @@ const pendingInteractionColumns: ExpectedColumn[] = [
   { name: "created_at", type: "integer", notNull: true, primaryKey: false },
   { name: "expires_at", type: "integer", notNull: false, primaryKey: false },
   { name: "resolved_at", type: "integer", notNull: false, primaryKey: false },
+  { name: "resolved_by", type: "text", notNull: false, primaryKey: false },
   { name: "updated_at", type: "integer", notNull: true, primaryKey: false },
 ];
 const pendingInteractionForeignKeys: ExpectedForeignKey[] = [

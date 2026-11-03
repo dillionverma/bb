@@ -6,6 +6,7 @@ import {
 } from "@bb/domain";
 import type { PendingInteractionCreate } from "@bb/domain";
 import type {
+  PendingInteraction,
   PendingInteractionResolution,
   UserQuestionPendingInteractionPayload,
 } from "@bb/domain";
@@ -25,7 +26,9 @@ import {
   createDenyResolution,
   createFileChangeApprovalPayload,
   createPermissionGrantApprovalPayload,
+  createUserAnswerResolution,
   createUserQuestionPayload,
+  UI_RESOLVER,
 } from "../helpers/pending-interactions.js";
 import {
   seedEnvironment,
@@ -36,7 +39,7 @@ import {
   seedThreadRuntimeState,
   seedTurnStarted,
 } from "../helpers/seed.js";
-import { withTestHarness } from "../helpers/test-app.js";
+import { withTestHarness, type TestAppHarness } from "../helpers/test-app.js";
 import { appendThreadEvent } from "../../src/services/threads/thread-events.js";
 
 function registerPendingInteraction(
@@ -338,6 +341,7 @@ describe("public thread interaction routes", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            "x-bb-app-surface": "desktop",
           },
           body: JSON.stringify(createAllowOnceResolution()),
         },
@@ -355,6 +359,7 @@ describe("public thread interaction routes", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            "x-bb-app-surface": "desktop",
           },
           body: JSON.stringify(createAllowOnceResolution()),
         },
@@ -372,6 +377,7 @@ describe("public thread interaction routes", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            "x-bb-app-surface": "desktop",
           },
           body: JSON.stringify(createDenyResolution()),
         },
@@ -442,6 +448,7 @@ describe("public thread interaction routes", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            "x-bb-app-surface": "desktop",
           },
           body: JSON.stringify(createAllowForSessionResolution()),
         },
@@ -458,6 +465,7 @@ describe("public thread interaction routes", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            "x-bb-app-surface": "desktop",
           },
           body: JSON.stringify({
             kind: "permission_request",
@@ -488,6 +496,7 @@ describe("public thread interaction routes", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            "x-bb-app-surface": "desktop",
           },
           body: JSON.stringify({
             decision: "allow_once",
@@ -546,6 +555,7 @@ describe("public thread interaction routes", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            "x-bb-app-surface": "desktop",
           },
           body: JSON.stringify(
             createAllowForSessionResolution({
@@ -615,6 +625,7 @@ describe("public thread interaction routes", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            "x-bb-app-surface": "desktop",
           },
           body: JSON.stringify(createDenyResolution()),
         },
@@ -673,6 +684,7 @@ describe("public thread interaction routes", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            "x-bb-app-surface": "desktop",
           },
           body: JSON.stringify({
             decision: "allow_once",
@@ -733,6 +745,7 @@ describe("public thread interaction routes", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            "x-bb-app-surface": "desktop",
           },
           body: JSON.stringify({
             kind: "command_approval",
@@ -796,6 +809,7 @@ describe("public thread interaction routes", () => {
             method: "POST",
             headers: {
               "content-type": "application/json",
+              "x-bb-app-surface": "desktop",
             },
             body: JSON.stringify(testCase.resolution),
           },
@@ -818,6 +832,194 @@ describe("public thread interaction routes", () => {
       });
     },
   );
+
+  describe("resolver provenance and policy", () => {
+    function seedQuestionAndApproval(harness: TestAppHarness) {
+      const { project, environment } = seedThreadFixture(harness, {
+        session: { id: "host-public-interaction-provenance" },
+      });
+      const register = (
+        providerRequestId: string,
+        payload: PendingInteractionCreate["payload"],
+      ) => {
+        const thread = seedThread(harness.deps, {
+          projectId: project.id,
+          environmentId: environment.id,
+          providerId: "claude-code",
+        });
+        const registered = registerPendingInteraction(
+          harness.deps,
+          harness.deps.pendingInteractions,
+          {
+            threadId: thread.id,
+            turnId: `turn-${providerRequestId}`,
+            providerId: "claude-code",
+            providerThreadId: `provider-thread-${providerRequestId}`,
+            providerRequestId,
+            payload,
+          },
+        );
+        if (registered.outcome === "rejected") {
+          throw new Error(`Expected registration: ${registered.reason}`);
+        }
+        return registered.interaction;
+      };
+      return {
+        question: register("request-question", createUserQuestionPayload()),
+        approval: register(
+          "request-approval",
+          createCommandApprovalPayload({
+            itemId: "item-provenance",
+            reason: "Approve command",
+            command: "git push",
+            cwd: "/tmp/project",
+          }),
+        ),
+      };
+    }
+
+    function resolveVia(
+      harness: TestAppHarness,
+      interaction: PendingInteraction,
+      resolution: PendingInteractionResolution,
+      headers: Record<string, string>,
+    ) {
+      return harness.app.request(
+        `/api/v1/threads/${interaction.threadId}/interactions/${interaction.id}/resolve`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", ...headers },
+          body: JSON.stringify(resolution),
+        },
+      );
+    }
+
+    async function getInteraction(
+      harness: TestAppHarness,
+      interaction: PendingInteraction,
+    ) {
+      return readJson(
+        await harness.app.request(
+          `/api/v1/threads/${interaction.threadId}/interactions/${interaction.id}`,
+        ),
+      );
+    }
+
+    const refusedCallers: Array<{
+      name: string;
+      headers: Record<string, string>;
+    }> = [
+      {
+        name: "an agent thread",
+        headers: { "x-bb-requesting-thread": "thr_agent" },
+      },
+      {
+        name: "an agent thread claiming the desktop surface",
+        headers: {
+          "x-bb-requesting-thread": "thr_agent",
+          "x-bb-app-surface": "desktop",
+        },
+      },
+      { name: "an API caller with no surface", headers: {} },
+      {
+        name: "a gate machine credential",
+        headers: { "x-bb-app-surface": "web", "x-bb-gate-auth": "machine" },
+      },
+    ];
+
+    it.each(refusedCallers)(
+      "refuses answers and approvals from $name",
+      async ({ headers }) => {
+        await withTestHarness(async (harness) => {
+          const { question, approval } = seedQuestionAndApproval(harness);
+          for (const [interaction, resolution] of [
+            [question, createUserAnswerResolution()],
+            [approval, createAllowOnceResolution()],
+          ] as const) {
+            const response = await resolveVia(
+              harness,
+              interaction,
+              resolution,
+              headers,
+            );
+            expect(response.status).toBe(403);
+            await expect(readJson(response)).resolves.toEqual({
+              code: "forbidden",
+              message: `Pending interaction ${interaction.id} asks the user, so only the BB app can answer it. Agent threads and API callers may only deny approvals.`,
+            });
+            await expect(
+              getInteraction(harness, interaction),
+            ).resolves.toMatchObject({
+              status: "pending",
+              resolution: null,
+              resolvedBy: null,
+            });
+          }
+        });
+      },
+    );
+
+    it("rejects a malformed requesting-thread header", async () => {
+      await withTestHarness(async (harness) => {
+        const { approval } = seedQuestionAndApproval(harness);
+        const response = await resolveVia(
+          harness,
+          approval,
+          createDenyResolution(),
+          { "x-bb-requesting-thread": "thr agent; drop" },
+        );
+        expect(response.status).toBe(400);
+        await expect(readJson(response)).resolves.toEqual({
+          code: "invalid_request",
+          message: "Invalid x-bb-requesting-thread header",
+        });
+      });
+    });
+
+    it("lets an agent thread deny an approval and records the agent", async () => {
+      await withTestHarness(async (harness) => {
+        const { approval } = seedQuestionAndApproval(harness);
+        const response = await resolveVia(
+          harness,
+          approval,
+          createDenyResolution(),
+          { "x-bb-requesting-thread": "thr_agent" },
+        );
+        expect(response.status).toBe(200);
+        await expect(getInteraction(harness, approval)).resolves.toMatchObject({
+          resolution: { decision: "deny" },
+          resolvedBy: {
+            kind: "agent",
+            surface: "api",
+            gateAuth: null,
+            requestingThreadId: "thr_agent",
+          },
+        });
+      });
+    });
+
+    it("accepts an answer from the app and records the app surface", async () => {
+      await withTestHarness(async (harness) => {
+        const { question } = seedQuestionAndApproval(harness);
+        const response = await resolveVia(
+          harness,
+          question,
+          createUserAnswerResolution(),
+          { "x-bb-app-surface": "web", "x-bb-gate-auth": "session" },
+        );
+        expect(response.status).toBe(200);
+        await expect(getInteraction(harness, question)).resolves.toMatchObject({
+          resolution: createUserAnswerResolution(),
+          resolvedBy: {
+            kind: "ui",
+            surface: "web",
+            gateAuth: "session",
+            requestingThreadId: null,
+          },
+        });
+      });
+    });
+  });
 
   it("holds sends and rejects queued-message send while a thread awaits user interaction", async () => {
     await withTestHarness(async (harness) => {
@@ -1207,6 +1409,7 @@ describe("public thread interaction routes", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            "x-bb-app-surface": "desktop",
           },
           body: JSON.stringify(createAllowOnceResolution()),
         },
@@ -1263,6 +1466,7 @@ describe("public thread interaction routes", () => {
       }
 
       harness.deps.pendingInteractions.resolvePendingInteraction({
+        resolver: UI_RESOLVER,
         threadId: thread.id,
         interactionId: registered.interaction.id,
         resolution: createAllowOnceResolution(),
@@ -1345,6 +1549,7 @@ describe("public thread interaction routes", () => {
       }
 
       harness.deps.pendingInteractions.resolvePendingInteraction({
+        resolver: UI_RESOLVER,
         threadId: thread.id,
         interactionId: registered.interaction.id,
         resolution: createDenyResolution(),

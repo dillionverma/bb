@@ -551,6 +551,12 @@ describe("bb thread interactions command output", () => {
           decision: "allow_for_session",
           grantedPermissions: null,
         },
+        resolvedBy: {
+          kind: "ui",
+          surface: "web",
+          gateAuth: "session",
+          requestingThreadId: null,
+        },
       }),
     );
     stubServerApi({
@@ -565,6 +571,7 @@ describe("bb thread interactions command output", () => {
     const lines = collectLogLines(vi.mocked(console.log));
     expect(lines).toContain("  Status: resolving");
     expect(lines).toContain("  Delivery: waiting for provider acknowledgement");
+    expect(lines).toContain("  Resolved by: BB app (web, gate session)");
     expect(lines).toContain("Resolution:");
     expect(lines).toContain("  Decision: allow_for_session");
   });

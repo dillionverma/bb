@@ -24,6 +24,7 @@ import {
   isPluginExtensionPendingInteraction,
   isPluginPendingInteraction,
   parseExtensionKind,
+  type InteractionResolver,
   type JsonValue,
   type PendingInteraction,
   type PendingInteractionCreate,
@@ -74,12 +75,14 @@ interface RegisterPendingInteractionArgs {
 interface ResolvePendingInteractionArgs {
   interactionId: string;
   resolution: PendingInteractionResolution;
+  resolver: InteractionResolver;
   threadId: string;
 }
 
 interface QueueInteractionResolutionCommandArgs {
   interaction: PendingInteraction;
   resolution: PendingInteractionResolution;
+  resolver: InteractionResolver;
 }
 
 interface CompleteResolvingInteractionArgs {
@@ -183,6 +186,20 @@ interface InterruptPendingInteractionsForThreadIdsLifecycleArgs {
 
 type CreateLifecycleDeps = LoggedWorkSessionDeps &
   Pick<AppDeps, "terminalSessions">;
+
+function assertResolverMayResolve(
+  interaction: PendingInteraction,
+  resolution: PendingInteractionResolution,
+  resolver: InteractionResolver,
+): void {
+  if (resolver.kind === "ui") return;
+  if ("decision" in resolution && resolution.decision === "deny") return;
+  throw new ApiError(
+    403,
+    "forbidden",
+    `Pending interaction ${interaction.id} asks the user, so only the BB app can answer it. Agent threads and API callers may only deny approvals.`,
+  );
+}
 
 function buildResolveConflictError(interaction: PendingInteraction): ApiError {
   return new ApiError(
@@ -553,6 +570,7 @@ export class PendingInteractionLifecycle {
 
   respondToInteraction(args: {
     interactionId: string;
+    resolver: InteractionResolver;
     threadId: string;
     value: JsonValue;
   }): PendingInteraction {
@@ -562,6 +580,7 @@ export class PendingInteractionLifecycle {
         interactionId: args.interactionId,
         threadId: args.threadId,
         resolution: { kind: "request_answer", value: args.value },
+        resolver: args.resolver,
       });
     }
     return this.respondToPluginInteraction(args);
@@ -569,6 +588,7 @@ export class PendingInteractionLifecycle {
 
   respondToPluginInteraction(args: {
     interactionId: string;
+    resolver: InteractionResolver;
     threadId: string;
     value: JsonValue;
   }): PendingInteraction {
@@ -588,6 +608,7 @@ export class PendingInteractionLifecycle {
     const updated = setPendingInteractionResolved(this.deps.db, {
       id: current.id,
       resolution: JSON.stringify({ kind: "plugin_submitted" }),
+      resolvedBy: JSON.stringify(args.resolver),
     });
     if (!updated)
       throw buildResolveConflictError(this.requireInteraction(current.id));
@@ -654,6 +675,7 @@ export class PendingInteractionLifecycle {
         "Pending interaction not found",
       );
     }
+    assertResolverMayResolve(current, args.resolution, args.resolver);
     if (current.status !== "pending") {
       if (
         (current.status === "resolving" || current.status === "resolved") &&
@@ -669,6 +691,7 @@ export class PendingInteractionLifecycle {
     const updated = this.queueInteractionResolutionCommand({
       interaction: current,
       resolution: args.resolution,
+      resolver: args.resolver,
     });
     if (!updated) {
       const latest = this.getThreadInteraction({
@@ -843,6 +866,7 @@ export class PendingInteractionLifecycle {
       setPendingInteractionResolving(tx, {
         id: args.interaction.id,
         resolution: resolutionJson,
+        resolvedBy: JSON.stringify(args.resolver),
       }),
     );
 

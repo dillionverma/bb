@@ -1,5 +1,6 @@
 import type {
   ApprovalPendingInteractionPayload,
+  InteractionResolver,
   ApprovalPendingInteractionResolution,
   PendingInteractionApprovalDecision,
   PendingInteractionGrantedPermissionProfile,
@@ -208,3 +209,10 @@ export function createDenyResolution(): ApprovalPendingInteractionResolution {
     decision: "deny",
   };
 }
+
+export const UI_RESOLVER: InteractionResolver = {
+  kind: "ui",
+  surface: "desktop",
+  gateAuth: null,
+  requestingThreadId: null,
+};

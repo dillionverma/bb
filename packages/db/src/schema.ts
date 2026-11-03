@@ -1104,6 +1104,7 @@ export const pendingInteractions = sqliteTable(
     createdAt: integer("created_at").notNull(),
     expiresAt: integer("expires_at"),
     resolvedAt: integer("resolved_at"),
+    resolvedBy: text("resolved_by"),
     updatedAt: integer("updated_at").notNull(),
   },
   (table) => [

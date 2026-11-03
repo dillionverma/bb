@@ -1,12 +1,20 @@
-import { pendingInteractionSchema, type PendingInteraction } from "@bb/domain";
+import {
+  interactionResolverSchema,
+  pendingInteractionSchema,
+  type InteractionResolver,
+  type PendingInteraction,
+} from "@bb/domain";
 import type { PendingInteractionRow } from "@bb/db";
 import { ApiError } from "../../errors.js";
 
 export class PendingInteractionSerializationError extends ApiError {
   readonly interactionId: string;
-  readonly field: "payload" | "resolution";
+  readonly field: "payload" | "resolution" | "resolvedBy";
 
-  constructor(interactionId: string, field: "payload" | "resolution") {
+  constructor(
+    interactionId: string,
+    field: "payload" | "resolution" | "resolvedBy",
+  ) {
     super(
       500,
       "internal_error",
@@ -32,6 +40,17 @@ function parseStoredPendingInteractionJson(
   }
 }
 
+function parseStoredResolver(
+  row: PendingInteractionRow,
+): InteractionResolver | null {
+  if (row.resolvedBy === null) return null;
+  try {
+    return interactionResolverSchema.parse(JSON.parse(row.resolvedBy));
+  } catch {
+    throw new PendingInteractionSerializationError(row.id, "resolvedBy");
+  }
+}
+
 export function toPendingInteraction(
   row: PendingInteractionRow,
 ): PendingInteraction {
@@ -40,6 +59,7 @@ export function toPendingInteraction(
     row.resolution === null
       ? null
       : parseStoredPendingInteractionJson(row, "resolution");
+  const resolvedBy = parseStoredResolver(row);
 
   try {
     return pendingInteractionSchema.parse({
@@ -73,6 +93,7 @@ export function toPendingInteraction(
       createdAt: row.createdAt,
       expiresAt: row.expiresAt,
       resolvedAt: row.resolvedAt,
+      resolvedBy,
     });
   } catch {
     throw new PendingInteractionSerializationError(row.id, "payload");

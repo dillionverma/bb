@@ -48,6 +48,7 @@ export interface SetPendingInteractionTerminalStateArgs {
   id: string;
   resolution: string | null;
   resolvedAt?: number;
+  resolvedBy?: string;
   status: "interrupted" | "resolved";
   statusReason: string | null;
 }
@@ -55,6 +56,7 @@ export interface SetPendingInteractionTerminalStateArgs {
 export interface SetPendingInteractionResolvingArgs {
   id: string;
   resolution: string;
+  resolvedBy: string;
 }
 
 export interface InterruptPendingInteractionsForThreadsArgs {
@@ -106,6 +108,9 @@ function updatePendingInteractionTerminalState(
         resolution: args.resolution,
         statusReason: args.statusReason,
         resolvedAt: args.resolvedAt ?? now,
+        ...(args.resolvedBy === undefined
+          ? {}
+          : { resolvedBy: args.resolvedBy }),
         updatedAt: now,
       })
       .where(
@@ -249,12 +254,14 @@ export function setPendingInteractionResolved(
   args: {
     id: string;
     resolution: string;
+    resolvedBy?: string;
   },
 ): PendingInteractionRow | null {
   return updatePendingInteractionTerminalState(db, {
     id: args.id,
     allowedCurrentStatuses: ["pending", "resolving"],
     resolution: args.resolution,
+    resolvedBy: args.resolvedBy,
     status: "resolved",
     statusReason: null,
   });
@@ -272,6 +279,7 @@ export function setPendingInteractionResolving(
       .set({
         status: "resolving",
         resolution: args.resolution,
+        resolvedBy: args.resolvedBy,
         statusReason: null,
         updatedAt: now,
       })

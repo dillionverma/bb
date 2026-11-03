@@ -534,6 +534,17 @@ export function isApprovalInteractionOutcome(
   return outcome.payload.kind === "approval";
 }
 
+// Who resolved an interaction. Local callers are not authenticated, so
+// `surface` and `requestingThreadId` are what the client declared: the app
+// declares its surface, and the bb CLI declares the agent thread it runs in.
+export const interactionResolverSchema = z.object({
+  kind: z.enum(["ui", "agent", "api"]),
+  surface: z.enum(["desktop", "web", "mobile", "api"]),
+  gateAuth: z.enum(["session", "machine"]).nullable(),
+  requestingThreadId: z.string().min(1).nullable(),
+});
+export type InteractionResolver = z.infer<typeof interactionResolverSchema>;
+
 const pendingInteractionProviderOriginSchema = z.object({
   kind: z.literal("provider"),
   providerId: z.string().min(1),
@@ -567,6 +578,7 @@ const pendingInteractionBaseSchema = z.object({
   createdAt: z.number().int().nonnegative(),
   expiresAt: z.number().int().nonnegative().nullable().optional(),
   resolvedAt: z.number().int().nonnegative().nullable(),
+  resolvedBy: interactionResolverSchema.nullable().optional(),
 });
 
 const providerPendingInteractionBaseSchema =
@@ -660,6 +672,7 @@ const interactionLifecycleRecordBaseSchema = z.object({
   id: z.string().min(1),
   status: pendingInteractionStatusSchema,
   statusReason: z.string().nullable(),
+  resolvedBy: interactionResolverSchema.nullable().optional(),
 });
 
 const interactionLifecycleProviderOriginSchema = z.object({
@@ -736,6 +749,7 @@ export function toInteractionLifecycle(
     id: interaction.id,
     status: interaction.status,
     statusReason: interaction.statusReason,
+    resolvedBy: interaction.resolvedBy ?? null,
   };
   if (isPluginPendingInteraction(interaction)) {
     return {
